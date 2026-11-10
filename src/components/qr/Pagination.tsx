@@ -47,7 +47,7 @@ export function Pagination({
         <Button
           variant="outline"
           size="icon"
-          className="size-8"
+          className="size-9 sm:size-8"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
           aria-label="Previous page"
@@ -68,7 +68,7 @@ export function Pagination({
               key={item}
               variant={item === currentPage ? "default" : "outline"}
               size="icon"
-              className="size-8 text-xs"
+              className="size-9 text-xs sm:size-8"
               aria-current={item === currentPage ? "page" : undefined}
               onClick={() => onPageChange(item)}
             >
@@ -79,7 +79,7 @@ export function Pagination({
         <Button
           variant="outline"
           size="icon"
-          className="size-8"
+          className="size-9 sm:size-8"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
           aria-label="Next page"

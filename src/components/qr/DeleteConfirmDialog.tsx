@@ -57,6 +57,7 @@ export function DeleteConfirmDialog({
           <Button
             type="button"
             variant="outline"
+            className="h-10 sm:h-9"
             onClick={() => onOpenChange(false)}
             disabled={deleting}
           >
@@ -65,6 +66,7 @@ export function DeleteConfirmDialog({
           <Button
             type="button"
             variant="destructive"
+            className="h-10 sm:h-9"
             onClick={() => void handleDelete()}
             disabled={deleting}
           >

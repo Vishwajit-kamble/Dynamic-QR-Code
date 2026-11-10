@@ -284,14 +284,14 @@ function QRWorkspace() {
             onLockWorkspace={() => void handleLock()}
           />
 
-          <main className="px-4 pb-12 pt-7 sm:px-8 sm:pt-8">
+          <main className="px-3.5 pb-10 pt-5 sm:px-8 sm:pb-12 sm:pt-8">
             {storageMode === "unconfigured-serverless" && (
               <div
                 role="alert"
                 className="mb-6 flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm"
               >
                 <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-foreground">
                     Cloud Database Required Before Printing Customer Cards
                   </p>
@@ -329,8 +329,8 @@ function QRWorkspace() {
               </div>
             ) : (
               <>
-                <section className="mb-7 flex flex-wrap items-end justify-between gap-4">
-                  <div>
+                <section className="mb-5 flex flex-col gap-3.5 sm:mb-7 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-primary">Your workspace</p>
                     <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-[28px]">
                       {view === "overview" ? "Overview" : "My QR codes"}
@@ -340,30 +340,33 @@ function QRWorkspace() {
                     </p>
                   </div>
                   <div
-                    className="inline-flex rounded-lg border border-border bg-card p-1"
+                    className="grid w-full grid-cols-2 gap-1 rounded-lg border border-border bg-card p-1 sm:inline-flex sm:w-auto sm:shrink-0"
                     role="group"
                     aria-label="Choose dashboard view"
                   >
                     <Button
                       size="sm"
                       variant={view === "overview" ? "secondary" : "ghost"}
-                      className="h-8 px-3"
+                      className="h-9 justify-center px-3 sm:h-8"
                       aria-pressed={view === "overview"}
                       onClick={() => setView("overview")}
                     >
-                      <BarChart3 aria-hidden="true" />{" "}
-                      <span className="sr-only sm:not-sr-only">Overview</span>
+                      <BarChart3 aria-hidden="true" />
+                      <span>Overview</span>
                     </Button>
                     <Button
                       size="sm"
                       variant={view === "codes" ? "secondary" : "ghost"}
-                      className="h-8 px-3"
+                      className="h-9 justify-center px-3 sm:h-8"
                       aria-pressed={view === "codes"}
                       onClick={() => setView("codes")}
                     >
-                      <QrCode aria-hidden="true" />{" "}
-                      <span className="sr-only sm:not-sr-only">QR codes</span>
-                      <span className="text-xs">{records.length}</span>
+                      <QrCode aria-hidden="true" />
+                      <span className="sm:hidden">Codes</span>
+                      <span className="hidden sm:inline">QR codes</span>
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium leading-none tabular-nums text-foreground">
+                        {records.length}
+                      </span>
                     </Button>
                   </div>
                 </section>

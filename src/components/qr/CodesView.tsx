@@ -156,6 +156,7 @@ export function CodesView({
         <MiniStat
           label="Scans · 30 days"
           value={`${thirtyDayScans}`}
+          inlineOnMobile
           className="col-span-2 sm:col-span-1"
         />
       </div>
@@ -167,18 +168,20 @@ export function CodesView({
               : "border-border bg-card"
           }`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-2 text-muted-foreground sm:items-center">
               {!isLocalOrPrivate && isCloudDb ? (
-                <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600 sm:mt-0" />
               ) : isLocalOrPrivate ? (
-                <Smartphone className="size-4 shrink-0 text-primary" />
+                <Smartphone className="mt-0.5 size-4 shrink-0 text-primary sm:mt-0" />
               ) : (
-                <Globe className="size-4 shrink-0 text-primary" />
+                <Globe className="mt-0.5 size-4 shrink-0 text-primary sm:mt-0" />
               )}
-              <span className="truncate">
+              <span className="min-w-0 leading-relaxed sm:truncate sm:leading-normal">
                 {isLocalOrPrivate ? "Phone scan address: " : "Production scan URL: "}
-                <strong className="font-medium text-foreground">{origin}</strong>
+                <strong className="font-medium text-foreground [overflow-wrap:anywhere] sm:break-normal">
+                  {origin}
+                </strong>
                 {!customOrigin && !isLocalOrPrivate && isCloudDb
                   ? " (Cloud live — scans work 24/7 worldwide)"
                   : !customOrigin && useLanOrigin && lanOrigin
@@ -188,13 +191,13 @@ export function CodesView({
                       : " (custom public URL)"}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-1.5">
               {!customOrigin && lanOrigin && onUseLanOriginChange && (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-9 px-3 text-xs sm:h-7 sm:px-2.5"
                   onClick={() => onUseLanOriginChange(!useLanOrigin)}
                 >
                   {useLanOrigin ? "Use localhost" : "Use Wi-Fi IP"}
@@ -205,7 +208,7 @@ export function CodesView({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-9 px-3 text-xs sm:h-7 sm:px-2.5"
                   onClick={() => {
                     onCustomOriginChange("");
                     setBaseUrlDraft("");
@@ -219,7 +222,7 @@ export function CodesView({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2.5 text-xs"
+                  className="h-9 px-3 text-xs sm:h-7 sm:px-2.5"
                   onClick={() => {
                     setBaseUrlDraft(customOrigin);
                     setBaseUrlError("");
@@ -232,27 +235,34 @@ export function CodesView({
             </div>
           </div>
           {editingBaseUrl && (
-            <div className="mt-2.5 flex flex-col gap-2 border-t border-border pt-2.5 sm:flex-row sm:items-center">
-              <Input
-                value={baseUrlDraft}
-                onChange={(e) => setBaseUrlDraft(e.target.value)}
-                placeholder="https://your-vercel-app.vercel.app"
-                aria-label="Custom QR base URL"
-                className="h-8 flex-1 text-xs"
-              />
-              <Button type="button" size="sm" className="h-8 text-xs" onClick={saveBaseUrl}>
-                Save base URL
-              </Button>
+            <div className="mt-2.5 space-y-2 border-t border-border pt-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  value={baseUrlDraft}
+                  onChange={(e) => setBaseUrlDraft(e.target.value)}
+                  placeholder="https://your-vercel-app.vercel.app"
+                  aria-label="Custom QR base URL"
+                  className="h-10 w-full text-base sm:h-8 sm:flex-1 sm:text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-10 w-full text-sm sm:h-8 sm:w-auto sm:text-xs"
+                  onClick={saveBaseUrl}
+                >
+                  Save base URL
+                </Button>
+              </div>
               {baseUrlError && (
-                <span role="alert" className="text-xs text-destructive">
+                <p role="alert" className="text-xs text-destructive">
                   {baseUrlError}
-                </span>
+                </p>
               )}
             </div>
           )}
         </div>
       )}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mb-4 flex flex-col gap-2.5 sm:gap-3 lg:flex-row lg:items-center">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -260,19 +270,19 @@ export function CodesView({
             onChange={(event) => handleSearch(event.target.value)}
             placeholder="Search by name, Card ID, or link"
             aria-label="Search QR codes"
-            className="h-10 pl-9"
+            className="h-10 pl-9 text-base md:text-sm"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="status-filter">
             Filter by status
           </label>
-          <div className="relative">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <select
               id="status-filter"
               value={statusFilter}
               onChange={(event) => handleStatusFilter(event.target.value as StatusFilter)}
-              className="h-10 min-w-32 appearance-none rounded-md border border-input bg-card pl-3 pr-9 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-10 w-full min-w-0 appearance-none rounded-md border border-input bg-card pl-3 pr-9 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-auto sm:min-w-36 sm:text-sm"
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
@@ -283,33 +293,35 @@ export function CodesView({
           </div>
           <Button
             variant="outline"
-            className="h-10"
+            className="h-10 shrink-0 px-3"
             onClick={handleSort}
             aria-label={sortNewest ? "Sorted by newest" : "Sorted by name"}
             title={sortNewest ? "Sorted by newest" : "Sorted by name"}
           >
-            <MoreHorizontal />{" "}
-            <span className="hidden sm:inline">{sortNewest ? "Newest" : "Name"}</span>
+            <MoreHorizontal />
+            <span>{sortNewest ? "Newest" : "Name"}</span>
             <ChevronDown />
           </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:hidden">
           {onBatchCreate && (
             <Button
               variant="outline"
-              className="h-10 sm:hidden"
+              className="h-10 w-full"
               onClick={onBatchCreate}
               aria-label="Batch generate review cards"
             >
-              <Layers />
+              <Layers /> Batch cards
             </Button>
           )}
           <Button
             variant="outline"
-            className="h-10 sm:hidden"
+            className={`h-10 w-full ${onBatchCreate ? "" : "col-span-2"}`}
             onClick={() => onPrint()}
             disabled={!records.length}
             aria-label="Print all QR codes"
           >
-            <Printer />
+            <Printer /> Print all
           </Button>
         </div>
       </div>

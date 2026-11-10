@@ -16,19 +16,28 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, note, icon, accent }: StatCardProps) {
+  const isLongValue = value.length > 8;
+
   return (
-    <article className="min-w-0 rounded-lg border border-border bg-card p-3.5 sm:p-4">
-      <div className="flex items-start justify-between gap-2">
-        <span className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+    <article className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-1.5 sm:gap-2">
+        <span className="min-w-0 text-xs font-medium leading-tight text-muted-foreground sm:text-sm">
           {label}
         </span>
         <span
-          className={`flex size-8 shrink-0 items-center justify-center rounded-md ${accentStyles[accent]}`}
+          className={`flex size-7 shrink-0 items-center justify-center rounded-md sm:size-8 ${accentStyles[accent]}`}
         >
           {icon}
         </span>
       </div>
-      <p className="mt-3 truncate text-xl font-semibold tabular-nums sm:text-2xl" title={value}>
+      <p
+        className={`mt-2.5 font-semibold tabular-nums sm:mt-3 ${
+          isLongValue
+            ? "line-clamp-2 break-words text-sm leading-snug sm:text-base sm:leading-snug lg:text-lg"
+            : "truncate text-xl leading-none sm:text-2xl sm:leading-tight"
+        }`}
+        title={value}
+      >
         {value}
       </p>
       <p className="mt-1 truncate text-[11px] text-muted-foreground sm:text-xs">{note}</p>

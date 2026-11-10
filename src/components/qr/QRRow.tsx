@@ -28,8 +28,8 @@ export function QRRow({
   const isUnlinked = isUnlinkedDestination(code.destination_url);
 
   return (
-    <article className="flex flex-col gap-3 border-b border-border px-3 py-3.5 last:border-0 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_156px] lg:items-center lg:gap-3 lg:px-4">
-      <div className="flex min-w-0 items-center gap-3">
+    <article className="flex flex-col gap-2.5 border-b border-border px-3 py-3.5 last:border-0 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_156px] lg:items-center lg:gap-3 lg:px-4">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
         <button
           type="button"
           onClick={onPreview}
@@ -40,8 +40,10 @@ export function QRRow({
           <QRCodeSVG value={url || "https://example.com"} size={42} level="M" includeMargin />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium">{code.name}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="min-w-0 break-words text-sm font-medium leading-snug lg:truncate">
+              {code.name}
+            </span>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                 isUnlinked
@@ -54,13 +56,12 @@ export function QRRow({
               {isUnlinked ? "Unlinked" : code.is_active ? "Active" : "Paused"}
             </span>
           </div>
-          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-            ID: {code.code}
-            <span className="lg:hidden">
-              {" "}
-              · {scans.toLocaleString()} {scans === 1 ? "scan" : "scans"} · 30d
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            <span className="max-w-full truncate font-mono">ID: {code.code}</span>
+            <span className="inline-flex shrink-0 items-center rounded bg-muted px-1.5 py-0.5 font-medium tabular-nums text-foreground lg:hidden">
+              {scans.toLocaleString()} {scans === 1 ? "scan" : "scans"} · 30d
             </span>
-          </p>
+          </div>
         </div>
       </div>
 
@@ -68,20 +69,20 @@ export function QRRow({
         <button
           type="button"
           onClick={onEdit}
-          className="flex min-w-0 items-center gap-1.5 pl-[60px] text-left text-xs font-medium text-primary hover:underline lg:pl-0"
+          className="flex min-h-9 w-full min-w-0 items-center gap-1.5 rounded-md bg-primary/5 px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-primary hover:bg-primary/10 lg:min-h-0 lg:w-auto lg:bg-transparent lg:px-0 lg:py-0 lg:hover:bg-transparent lg:hover:underline"
         >
           <Link2 className="size-3.5 shrink-0" />
-          <span className="truncate">Awaiting customer link — assign URL</span>
+          <span className="min-w-0">Awaiting customer link — assign URL</span>
         </button>
       ) : (
         <a
           href={code.destination_url}
           target="_blank"
           rel="noreferrer"
-          className="flex min-w-0 items-center gap-1 pl-[60px] text-xs text-muted-foreground hover:text-primary lg:pl-0"
+          className="flex min-h-9 min-w-0 items-center gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-primary lg:min-h-0 lg:bg-transparent lg:px-0 lg:py-0"
           title={code.destination_url}
         >
-          <span className="truncate">{code.destination_url}</span>
+          <span className="min-w-0 flex-1 truncate">{code.destination_url}</span>
           <ExternalLink className="size-3 shrink-0" />
         </a>
       )}
@@ -91,11 +92,11 @@ export function QRRow({
         <span className="text-xs text-muted-foreground">{scans === 1 ? "scan" : "scans"}</span>
       </span>
 
-      <div className="flex items-center justify-end gap-1">
+      <div className="grid grid-cols-4 gap-1.5 border-t border-border/60 pt-2 lg:flex lg:items-center lg:justify-end lg:gap-1 lg:border-t-0 lg:pt-0">
         <Button
           variant="ghost"
           size="icon"
-          className="size-9"
+          className="h-9 w-full lg:size-9"
           onClick={onEdit}
           aria-label={`Edit ${code.name}`}
           title="Edit"
@@ -105,7 +106,7 @@ export function QRRow({
         <Button
           variant="ghost"
           size="icon"
-          className="size-9"
+          className="h-9 w-full lg:size-9"
           onClick={onPrint}
           aria-label={`Print ${code.name}`}
           title="Print"
@@ -115,7 +116,7 @@ export function QRRow({
         <Button
           variant="ghost"
           size="icon"
-          className="size-9"
+          className="h-9 w-full lg:size-9"
           onClick={isUnlinked ? onEdit : onToggle}
           aria-label={
             isUnlinked
@@ -131,7 +132,7 @@ export function QRRow({
         <Button
           variant="ghost"
           size="icon"
-          className="size-9 text-destructive hover:text-destructive"
+          className="h-9 w-full text-destructive hover:text-destructive lg:size-9"
           onClick={onDelete}
           aria-label={`Delete ${code.name}`}
           title="Delete"

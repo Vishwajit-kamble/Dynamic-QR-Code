@@ -30,8 +30,8 @@ export function AdminUnlockScreen({ onUnlock }: AdminUnlockScreenProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xs">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-6">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6">
         <div className="mb-5 flex flex-col items-center text-center">
           <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Lock className="size-5" />
@@ -66,7 +66,7 @@ export function AdminUnlockScreen({ onUnlock }: AdminUnlockScreenProps) {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" className="h-10 w-full sm:h-9" disabled={submitting}>
             {submitting ? <LoaderCircle className="animate-spin" /> : <KeyRound />}
             {submitting ? "Unlocking…" : "Unlock workspace"}
           </Button>

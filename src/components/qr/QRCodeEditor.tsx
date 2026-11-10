@@ -107,8 +107,8 @@ export function QRCodeEditor({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[470px]">
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="min-w-0 text-left">
+          <DialogTitle className="pr-9">
             {editing
               ? editingWasUnlinked
                 ? "Assign customer link"
@@ -143,7 +143,7 @@ export function QRCodeEditor({
           </div>
 
           {!editing && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs leading-snug text-muted-foreground">
               <input
                 type="checkbox"
                 checked={leaveUnlinked}
@@ -151,9 +151,9 @@ export function QRCodeEditor({
                   setLeaveUnlinked(event.target.checked);
                   if (formError) setFormError("");
                 }}
-                className="size-4 rounded border-input accent-primary"
+                className="size-4 shrink-0 rounded border-input accent-primary"
               />
-              Pre-print blank card now (assign customer’s Google Review link later)
+              <span>Pre-print blank card now (assign customer’s Google Review link later)</span>
             </label>
           )}
 
@@ -193,10 +193,15 @@ export function QRCodeEditor({
               : "You can change the destination later without reprinting your QR card."}
           </p>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 sm:h-9"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" className="h-10 sm:h-9" disabled={saving}>
               {saving ? <LoaderCircle className="animate-spin" /> : editing ? <Check /> : <Plus />}
               {saving ? "Saving…" : editing ? "Save changes" : "Create code"}
             </Button>

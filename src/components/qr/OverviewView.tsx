@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   ExternalLink,
@@ -28,7 +28,6 @@ import { Pagination } from "@/components/qr/Pagination";
 import { formatRelative } from "@/lib/format-relative";
 import { MAX_QR_CODES } from "@/lib/qr-workspace";
 import type { Period, QRRecord, ScanRecord } from "@/components/qr/types";
-import { useState } from "react";
 
 const RECENT_SCANS_PAGE_SIZE = 10;
 
@@ -50,6 +49,16 @@ export function OverviewView({
   onCreateCode,
 }: OverviewViewProps) {
   const [recentScansPage, setRecentScansPage] = useState(1);
+  const [isNarrowPhone, setIsNarrowPhone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 479px)");
+    const update = () => setIsNarrowPhone(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   const codeNames = useMemo(() => new Map(records.map((code) => [code.id, code.name])), [records]);
 
@@ -201,7 +210,7 @@ export function OverviewView({
                   key={days}
                   variant={period === days ? "secondary" : "ghost"}
                   size="sm"
-                  className="h-7 min-w-10 px-2 text-xs"
+                  className="h-9 min-w-11 px-2.5 text-xs sm:h-7 sm:min-w-10 sm:px-2"
                   onClick={() => handlePeriodChange(days)}
                 >
                   {days}d
@@ -210,17 +219,18 @@ export function OverviewView({
             </div>
           </div>
           <div
-            className="mt-5 h-[225px] min-w-0"
+            className="mt-5 h-[200px] min-w-0 sm:h-[225px]"
             role="img"
             aria-label={`QR scans in the past ${period} days`}
           >
-            <ResponsiveContainer width="100%" height={225} minWidth={1}>
-              <LineChart data={dailyScans} margin={{ top: 8, right: 16, bottom: 0, left: -22 }}>
+            <ResponsiveContainer width="100%" height={isNarrowPhone ? 200 : 225} minWidth={1}>
+              <LineChart data={dailyScans} margin={{ top: 8, right: 10, bottom: 0, left: -24 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 4" />
                 <XAxis
                   dataKey="day"
                   tickLine={false}
                   axisLine={false}
+                  minTickGap={16}
                   interval={period === 7 ? 0 : period === 30 ? 4 : 13}
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                 />
@@ -300,7 +310,12 @@ export function OverviewView({
                 Your most scanned codes · {period} days
               </p>
             </div>
-            <Button variant="ghost" size="sm" className="text-xs" onClick={onViewCodes}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 shrink-0 px-2.5 text-xs sm:h-8"
+              onClick={onViewCodes}
+            >
               All codes <ExternalLink />
             </Button>
           </div>
@@ -310,13 +325,13 @@ export function OverviewView({
                 <BarChart
                   data={popularCodes}
                   layout="vertical"
-                  margin={{ left: 4, right: 15, top: 3, bottom: 3 }}
+                  margin={{ left: 2, right: 12, top: 3, bottom: 3 }}
                 >
                   <XAxis type="number" allowDecimals={false} hide />
                   <YAxis
                     type="category"
                     dataKey="name"
-                    width={120}
+                    width={isNarrowPhone ? 96 : 120}
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 11, fill: "var(--foreground)" }}
@@ -411,7 +426,39 @@ export function OverviewView({
         </div>
         {filteredScans.length ? (
           <>
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 divide-y divide-border sm:hidden">
+              {paginatedRecentScans.map((scan, index) => (
+                <div
+                  key={`${scan.qr_code_id}-${scan.scanned_at}-${index}`}
+                  className="py-3 first:pt-1 last:pb-1"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 text-sm font-medium leading-snug text-foreground">
+                      {codeNames.get(scan.qr_code_id) ?? "QR code"}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatRelative(scan.scanned_at)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-medium capitalize text-foreground">
+                      {scan.device_type === "tablet" ? (
+                        <Tablet className="size-3" aria-hidden="true" />
+                      ) : scan.device_type === "desktop" ? (
+                        <Monitor className="size-3" aria-hidden="true" />
+                      ) : (
+                        <Smartphone className="size-3" aria-hidden="true" />
+                      )}
+                      {scan.device_type || "unknown"}
+                    </span>
+                    <span className="min-w-0 truncate">
+                      {scan.referrer_host || "Direct / unknown"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[540px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground">

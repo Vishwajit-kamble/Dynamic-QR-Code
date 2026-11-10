@@ -23,12 +23,12 @@ export function Header({
   onLockWorkspace,
 }: HeaderProps) {
   return (
-    <header className="flex min-h-[76px] items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-8">
-      <div className="flex items-center gap-2 md:hidden">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+    <header className="flex min-h-16 items-center justify-between gap-2.5 border-b border-border bg-card px-3.5 sm:min-h-[76px] sm:gap-3 sm:px-8">
+      <div className="flex min-w-0 items-center gap-2 md:hidden">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <QrCode className="size-4" />
         </span>
-        <span className="text-sm font-semibold">
+        <span className="truncate text-sm font-semibold">
           qr<span className="text-primary">studio</span>
         </span>
       </div>
@@ -39,15 +39,15 @@ export function Header({
           {view === "overview" ? "Overview" : "My QR codes"}
         </span>
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
         {authEnabled && onLockWorkspace && (
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={onLockWorkspace}
             aria-label="Lock workspace"
             title="Lock workspace"
-            className="h-9 px-2.5 text-muted-foreground"
+            className="size-9 text-muted-foreground"
           >
             <Lock />
           </Button>
@@ -70,7 +70,11 @@ export function Header({
         >
           <Layers /> Batch cards
         </Button>
-        <Button onClick={onCreateCode} disabled={!canCreateQrCode(codesCount)} className="h-9">
+        <Button
+          onClick={onCreateCode}
+          disabled={!canCreateQrCode(codesCount)}
+          className="h-9 px-3 sm:px-4"
+        >
           <Plus /> <span className="hidden sm:inline">Create QR code</span>
           <span className="sm:hidden">Create</span>
         </Button>

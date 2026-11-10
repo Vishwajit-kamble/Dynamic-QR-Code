@@ -120,18 +120,22 @@ export function BatchCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Batch generate review cards</DialogTitle>
+      <DialogContent className="gap-2.5 sm:max-w-[500px] sm:gap-4">
+        <DialogHeader className="min-w-0 text-left">
+          <DialogTitle className="pr-9">Batch generate review cards</DialogTitle>
           <DialogDescription>
             Pre-print blank dynamic QR cards for inventory first, then link each card to a buyer’s
             Google Review link after you sell it.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={(event) => void handleSubmit(event)} noValidate className="space-y-4">
+        <form
+          onSubmit={(event) => void handleSubmit(event)}
+          noValidate
+          className="space-y-2.5 sm:space-y-4"
+        >
           {isLocalPrintRisk && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-foreground">
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-foreground sm:p-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
               <div>
                 <p className="font-medium">Local scan URL detected ({activeOrigin || "local"})</p>
@@ -166,18 +170,19 @@ export function BatchCreateDialog({
             <label htmlFor="batch-count" className="text-sm font-medium">
               Number of cards
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {PRESET_COUNTS.map((preset) => (
                 <Button
                   key={preset}
                   type="button"
                   size="sm"
                   variant={count === preset ? "secondary" : "outline"}
-                  className="h-8 px-3 text-xs"
+                  className="h-9 min-w-10 px-2.5 text-xs sm:h-8 sm:min-w-0 sm:px-3"
                   disabled={preset > remaining}
                   onClick={() => setCount(preset)}
                 >
-                  {preset} cards
+                  <span>{preset}</span>
+                  <span className="hidden sm:inline">cards</span>
                 </Button>
               ))}
               <Input
@@ -187,12 +192,13 @@ export function BatchCreateDialog({
                 max={Math.min(MAX_BATCH_CREATE, remaining || 1)}
                 value={count}
                 onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
-                className="h-8 w-20 text-xs"
+                aria-label="Number of cards"
+                className="h-9 w-16 text-base sm:h-8 sm:w-20 sm:text-xs"
               />
             </div>
           </div>
 
-          <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+          <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-2.5 sm:p-3">
             <label className="flex cursor-pointer items-start gap-2.5 text-sm">
               <input
                 type="checkbox"
@@ -228,15 +234,15 @@ export function BatchCreateDialog({
             )}
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex min-h-10 cursor-pointer items-center gap-2 py-1 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={printAfter}
               onChange={(event) => setPrintAfter(event.target.checked)}
-              className="size-4 rounded border-input accent-primary"
+              className="size-4 shrink-0 rounded border-input accent-primary"
             />
-            <Printer className="size-3.5" />
-            Open printable label sheet right after generating
+            <Printer className="size-3.5 shrink-0" />
+            <span>Open printable label sheet right after generating</span>
           </label>
 
           {error && (
@@ -245,13 +251,25 @@ export function BatchCreateDialog({
             </p>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full sm:h-9 sm:w-auto"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || remaining === 0}>
+            <Button
+              type="submit"
+              className="h-10 w-full px-3 sm:h-9 sm:w-auto sm:px-4"
+              disabled={saving || remaining === 0}
+            >
               {saving ? <LoaderCircle className="animate-spin" /> : <Layers />}
-              {saving ? "Generating…" : `Generate ${count} cards`}
+              <span>
+                {saving ? "Generating…" : `Generate ${count}`}
+                {!saving && <span className="hidden sm:inline"> cards</span>}
+              </span>
             </Button>
           </DialogFooter>
         </form>

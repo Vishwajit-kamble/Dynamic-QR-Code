@@ -30,11 +30,12 @@ function renderStatusHtml(title: string, message: string, cardCode?: string): st
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>${escapeHtml(title)}</title>
     <style>
-      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; color: #0f172a; display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 20px; }
-      main { max-width: 420px; width: 100%; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 2px 10px rgba(15,23,42,0.04); }
-      h1 { margin: 0 0 10px; font-size: 20px; font-weight: 600; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; color: #0f172a; display: flex; min-height: 100dvh; align-items: center; justify-content: center; padding: 16px; }
+      main { max-width: 420px; width: 100%; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px 20px; text-align: center; box-shadow: 0 2px 10px rgba(15,23,42,0.04); }
+      h1 { margin: 0 0 10px; font-size: 20px; font-weight: 600; line-height: 1.3; }
       p { margin: 0; color: #475569; font-size: 14px; line-height: 1.55; }
-      .code { margin-top: 16px; display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #334155; }
+      .code { margin-top: 16px; display: inline-block; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #334155; }
     </style>
   </head>
   <body>

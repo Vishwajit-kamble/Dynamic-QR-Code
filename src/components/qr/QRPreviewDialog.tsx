@@ -123,8 +123,8 @@ export function QRPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader className="min-w-0 text-left">
-          <DialogTitle className="flex min-w-0 items-center gap-2 pr-7 leading-snug">
-            <span className="min-w-0 truncate py-0.5">{code.name}</span>
+          <DialogTitle className="flex min-w-0 flex-wrap items-center gap-2 pr-9 leading-snug">
+            <span className="min-w-0 break-words py-0.5 sm:truncate">{code.name}</span>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                 isUnlinked
@@ -138,7 +138,7 @@ export function QRPreviewDialog({
             </span>
           </DialogTitle>
           <DialogDescription
-            className="min-w-0 truncate"
+            className="min-w-0 line-clamp-2 [overflow-wrap:anywhere] sm:line-clamp-none sm:truncate"
             title={isUnlinked ? "Unlinked inventory card" : code.destination_url}
           >
             {isUnlinked
@@ -147,12 +147,18 @@ export function QRPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex w-full min-w-0 flex-col items-center gap-3.5 py-1">
+        <div className="flex w-full min-w-0 flex-col items-center gap-3 py-0.5 sm:gap-3.5 sm:py-1">
           <div
             ref={svgWrapperRef}
-            className="rounded-xl border border-border bg-white p-3 shadow-xs"
+            className="rounded-xl border border-border bg-white p-2.5 shadow-xs sm:p-3"
           >
-            <QRCodeSVG value={qrUrl} size={220} level="M" includeMargin />
+            <QRCodeSVG
+              value={qrUrl}
+              size={220}
+              level="M"
+              includeMargin
+              className="h-44 w-44 sm:h-[212px] sm:w-[212px]"
+            />
           </div>
 
           <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
@@ -180,7 +186,7 @@ export function QRPreviewDialog({
           )}
 
           {hasLanOption && (
-            <div className="flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-secondary px-3 py-2.5 text-xs">
+            <div className="flex w-full min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-secondary px-3 py-2.5 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-2 text-muted-foreground">
                 <Smartphone className="mt-0.5 size-4 shrink-0 text-primary" />
                 <div className="min-w-0">
@@ -196,7 +202,7 @@ export function QRPreviewDialog({
                 type="button"
                 size="sm"
                 variant={useLanOrigin ? "outline" : "default"}
-                className="h-8 shrink-0 bg-background text-xs"
+                className="h-9 w-full shrink-0 bg-background text-xs sm:h-8 sm:w-auto"
                 onClick={() => onUseLanOriginChange(!useLanOrigin)}
               >
                 {useLanOrigin ? "Use localhost" : "Use Wi-Fi URL"}
@@ -204,37 +210,45 @@ export function QRPreviewDialog({
             </div>
           )}
 
-          <div className="flex w-full min-w-0 items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2">
+          <div className="flex w-full min-w-0 items-center gap-2 rounded-md border border-border bg-muted/60 py-1.5 pl-3 pr-1.5 sm:py-2 sm:pr-2">
             <code className="min-w-0 flex-1 truncate text-xs text-foreground">{qrUrl}</code>
             <Button
               type="button"
               size="icon"
               variant="ghost"
-              className="size-7 shrink-0"
+              className="size-9 shrink-0 sm:size-7"
               onClick={() => void handleCopy()}
               aria-label="Copy short link"
               title="Copy short link"
             >
-              {copied ? <Check className="size-3.5 text-chart-2" /> : <Copy className="size-3.5" />}
+              {copied ? (
+                <Check className="size-4 text-chart-2 sm:size-3.5" />
+              ) : (
+                <Copy className="size-4 sm:size-3.5" />
+              )}
             </Button>
           </div>
         </div>
 
-        <DialogFooter className="min-w-0 flex-row flex-wrap items-center justify-between gap-2 sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => void handleDownloadPng()}>
-              <Download /> Download PNG
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Download SVG"
-              onClick={handleDownloadSvg}
-            >
-              <FileCode2 /> SVG
-            </Button>
-          </div>
-          <Button asChild>
+        <DialogFooter className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full sm:h-9 sm:w-auto"
+            onClick={() => void handleDownloadPng()}
+          >
+            <Download /> Download PNG
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full sm:h-9 sm:w-auto"
+            aria-label="Download SVG"
+            onClick={handleDownloadSvg}
+          >
+            <FileCode2 /> SVG
+          </Button>
+          <Button asChild className="col-span-2 h-10 w-full sm:ml-auto sm:h-9 sm:w-auto">
             <a
               href={qrUrl}
               target="_blank"
