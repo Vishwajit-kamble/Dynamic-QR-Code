@@ -198,7 +198,12 @@ describe("QRRow and PrintSheet Components", () => {
       <QRPreviewDialog
         open
         onOpenChange={() => {}}
-        code={sampleRecord}
+        code={{
+          ...sampleRecord,
+          name: "Google Review Card #01",
+          destination_url:
+            "https://github.com/Vishwajit-kamble/scan-sprout-dynamic-codes-very-long-url",
+        }}
         origin="http://localhost:8081"
         lanOrigin="http://10.224.253.245:8081"
         useLanOrigin
@@ -206,6 +211,8 @@ describe("QRRow and PrintSheet Components", () => {
       />,
     );
 
+    expect(screen.getByText("Google Review Card #01")).toBeDefined();
+    expect(screen.getByText(/Redirects to https:\/\/github\.com/)).toBeDefined();
     expect(screen.getByText("http://10.224.253.245:8081/r/abcdef123456")).toBeDefined();
     expect(screen.getByText(/Card ID: abcdef123456/)).toBeDefined();
     expect(screen.getByRole("button", { name: /Download SVG/i })).toBeDefined();

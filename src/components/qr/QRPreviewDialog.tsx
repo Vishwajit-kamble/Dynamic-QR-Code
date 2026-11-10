@@ -122,9 +122,9 @@ export function QRPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 pr-6">
-            <span className="truncate">{code.name}</span>
+        <DialogHeader className="min-w-0 text-left">
+          <DialogTitle className="flex min-w-0 items-center gap-2 pr-7 leading-snug">
+            <span className="min-w-0 truncate py-0.5">{code.name}</span>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                 isUnlinked
@@ -138,7 +138,7 @@ export function QRPreviewDialog({
             </span>
           </DialogTitle>
           <DialogDescription
-            className="truncate"
+            className="min-w-0 truncate"
             title={isUnlinked ? "Unlinked inventory card" : code.destination_url}
           >
             {isUnlinked
@@ -147,7 +147,7 @@ export function QRPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-3.5 py-1">
+        <div className="flex w-full min-w-0 flex-col items-center gap-3.5 py-1">
           <div
             ref={svgWrapperRef}
             className="rounded-xl border border-border bg-white p-3 shadow-xs"
@@ -155,14 +155,14 @@ export function QRPreviewDialog({
             <QRCodeSVG value={qrUrl} size={220} level="M" includeMargin />
           </div>
 
-          <span className="rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
+          <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
             Card ID: {code.code}
           </span>
 
           {isLocalPrintRisk && (
-            <div className="flex w-full items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+            <div className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-foreground">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              <p className="text-muted-foreground">
+              <p className="min-w-0 text-muted-foreground">
                 <strong className="font-medium text-foreground">Local test URL:</strong> Only works
                 while this PC is on. Deploy or set a public{" "}
                 <strong className="font-medium text-foreground">Custom URL</strong> before bulk
@@ -172,7 +172,7 @@ export function QRPreviewDialog({
           )}
 
           {!code.is_active && (
-            <p className="w-full rounded-md border border-border bg-muted/60 px-3 py-2 text-center text-xs text-muted-foreground">
+            <p className="w-full min-w-0 rounded-md border border-border bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
               {isUnlinked
                 ? "This pre-printed card is ready to sell. Edit it to attach the customer's Google Review link and activate."
                 : "This QR code is currently paused. Scanning it will show an unavailable page until activated."}
@@ -180,10 +180,10 @@ export function QRPreviewDialog({
           )}
 
           {hasLanOption && (
-            <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-secondary/50 px-3 py-2.5 text-xs">
-              <div className="flex items-start gap-2 text-muted-foreground">
+            <div className="flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-secondary px-3 py-2.5 text-xs">
+              <div className="flex min-w-0 flex-1 items-start gap-2 text-muted-foreground">
                 <Smartphone className="mt-0.5 size-4 shrink-0 text-primary" />
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-foreground">Scan from your phone camera</p>
                   <p className="mt-0.5">
                     {useLanOrigin
@@ -196,7 +196,7 @@ export function QRPreviewDialog({
                 type="button"
                 size="sm"
                 variant={useLanOrigin ? "outline" : "default"}
-                className="h-8 shrink-0 text-xs"
+                className="h-8 shrink-0 bg-background text-xs"
                 onClick={() => onUseLanOriginChange(!useLanOrigin)}
               >
                 {useLanOrigin ? "Use localhost" : "Use Wi-Fi URL"}
@@ -204,7 +204,7 @@ export function QRPreviewDialog({
             </div>
           )}
 
-          <div className="flex w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+          <div className="flex w-full min-w-0 items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2">
             <code className="min-w-0 flex-1 truncate text-xs text-foreground">{qrUrl}</code>
             <Button
               type="button"
@@ -220,7 +220,7 @@ export function QRPreviewDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+        <DialogFooter className="min-w-0 flex-row flex-wrap items-center justify-between gap-2 sm:justify-between">
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" onClick={() => void handleDownloadPng()}>
               <Download /> Download PNG

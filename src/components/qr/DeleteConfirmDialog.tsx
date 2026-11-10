@@ -49,8 +49,8 @@ export function DeleteConfirmDialog({
           <DialogTitle className="text-center">Delete QR code</DialogTitle>
           <DialogDescription className="text-center">
             Are you sure you want to delete{" "}
-            <strong className="text-foreground">{code?.name}</strong>? This will permanently remove
-            the QR code and all its scan history. This action cannot be undone.
+            <strong className="break-words text-foreground">{code?.name}</strong>? This will
+            permanently remove the QR code and all its scan history. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:justify-center">
