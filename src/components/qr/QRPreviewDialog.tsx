@@ -1,0 +1,255 @@
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Download,
+  ExternalLink,
+  FileCode2,
+  Smartphone,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { isPrivateOrLocalOrigin, isUnlinkedDestination } from "@/lib/qr-workspace";
+import type { QRRecord } from "@/components/qr/types";
+
+interface QRPreviewDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  code: QRRecord | null;
+  origin: string;
+  lanOrigin: string | null;
+  useLanOrigin: boolean;
+  onUseLanOriginChange: (value: boolean) => void;
+  customOrigin?: string;
+  onTestedScan?: () => void;
+}
+
+export function QRPreviewDialog({
+  open,
+  onOpenChange,
+  code,
+  origin,
+  lanOrigin,
+  useLanOrigin,
+  onUseLanOriginChange,
+  customOrigin = "",
+  onTestedScan,
+}: QRPreviewDialogProps) {
+  const [copied, setCopied] = useState(false);
+  const svgWrapperRef = useRef<HTMLDivElement>(null);
+
+  if (!code) return null;
+
+  const activeOrigin = customOrigin || (useLanOrigin && lanOrigin ? lanOrigin : origin);
+  const qrUrl = activeOrigin ? `${activeOrigin}/r/${code.code}` : `/r/${code.code}`;
+  const hasLanOption = Boolean(!customOrigin && lanOrigin && lanOrigin !== origin);
+  const isUnlinked = isUnlinkedDestination(code.destination_url);
+  const isLocalPrintRisk = activeOrigin ? isPrivateOrLocalOrigin(activeOrigin) : true;
+  const safeFileSlug =
+    code.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "qr-code";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(qrUrl);
+      setCopied(true);
+      toast.success("QR short link copied");
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error("Could not copy link to clipboard.");
+    }
+  };
+
+  const handleDownloadSvg = () => {
+    const svg = svgWrapperRef.current?.querySelector("svg");
+    if (!svg) return;
+    const xml = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `${safeFileSlug}.svg`;
+    link.href = url;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleDownloadPng = async () => {
+    const svg = svgWrapperRef.current?.querySelector("svg");
+    if (!svg) return;
+    try {
+      const xml = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+      const blobUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Image load failed"));
+        img.src = blobUrl;
+      });
+      const size = 1024;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(blobUrl);
+
+      const pngUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = `${safeFileSlug}.png`;
+      link.href = pngUrl;
+      link.click();
+    } catch {
+      toast.error("Could not export PNG.");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 pr-6">
+            <span className="truncate">{code.name}</span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                isUnlinked
+                  ? "bg-amber-500/15 text-amber-700"
+                  : code.is_active
+                    ? "bg-chart-2/15 text-chart-2"
+                    : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {isUnlinked ? "Unlinked" : code.is_active ? "Active" : "Paused"}
+            </span>
+          </DialogTitle>
+          <DialogDescription
+            className="truncate"
+            title={isUnlinked ? "Unlinked inventory card" : code.destination_url}
+          >
+            {isUnlinked
+              ? `Card ID: ${code.code} · Assign customer Google Review link when sold`
+              : `Redirects to ${code.destination_url}`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-3.5 py-1">
+          <div
+            ref={svgWrapperRef}
+            className="rounded-xl border border-border bg-white p-3 shadow-xs"
+          >
+            <QRCodeSVG value={qrUrl} size={220} level="M" includeMargin />
+          </div>
+
+          <span className="rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
+            Card ID: {code.code}
+          </span>
+
+          {isLocalPrintRisk && (
+            <div className="flex w-full items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <p className="text-muted-foreground">
+                <strong className="font-medium text-foreground">Local test URL:</strong> Only works
+                while this PC is on. Deploy or set a public{" "}
+                <strong className="font-medium text-foreground">Custom URL</strong> before bulk
+                printing cards to sell.
+              </p>
+            </div>
+          )}
+
+          {!code.is_active && (
+            <p className="w-full rounded-md border border-border bg-muted/60 px-3 py-2 text-center text-xs text-muted-foreground">
+              {isUnlinked
+                ? "This pre-printed card is ready to sell. Edit it to attach the customer's Google Review link and activate."
+                : "This QR code is currently paused. Scanning it will show an unavailable page until activated."}
+            </p>
+          )}
+
+          {hasLanOption && (
+            <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-secondary/50 px-3 py-2.5 text-xs">
+              <div className="flex items-start gap-2 text-muted-foreground">
+                <Smartphone className="mt-0.5 size-4 shrink-0 text-primary" />
+                <div>
+                  <p className="font-medium text-foreground">Scan from your phone camera</p>
+                  <p className="mt-0.5">
+                    {useLanOrigin
+                      ? "Using your Wi-Fi IP so phones on the same Wi-Fi connect directly."
+                      : "Switch from localhost to your Wi-Fi IP so phones can connect."}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={useLanOrigin ? "outline" : "default"}
+                className="h-8 shrink-0 text-xs"
+                onClick={() => onUseLanOriginChange(!useLanOrigin)}
+              >
+                {useLanOrigin ? "Use localhost" : "Use Wi-Fi URL"}
+              </Button>
+            </div>
+          )}
+
+          <div className="flex w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+            <code className="min-w-0 flex-1 truncate text-xs text-foreground">{qrUrl}</code>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-7 shrink-0"
+              onClick={() => void handleCopy()}
+              aria-label="Copy short link"
+              title="Copy short link"
+            >
+              {copied ? <Check className="size-3.5 text-chart-2" /> : <Copy className="size-3.5" />}
+            </Button>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void handleDownloadPng()}>
+              <Download /> Download PNG
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Download SVG"
+              onClick={handleDownloadSvg}
+            >
+              <FileCode2 /> SVG
+            </Button>
+          </div>
+          <Button asChild>
+            <a
+              href={qrUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => {
+                if (onTestedScan) {
+                  window.setTimeout(onTestedScan, 700);
+                }
+              }}
+            >
+              <ExternalLink /> Test scan link
+            </a>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

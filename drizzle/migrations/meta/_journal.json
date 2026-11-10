@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794252188919,
+      "tag": "0000_create_dynamic_qr_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794252297580,
+      "tag": "0001_cap_qr_codes_at_fifty",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794252349919,
+      "tag": "0002_add_public_dynamic_qr_redirect",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794252670282,
+      "tag": "0003_add_private_qr_analytics",
+      "breakpoints": true
+    }
+  ]
+}
