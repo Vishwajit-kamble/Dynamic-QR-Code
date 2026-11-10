@@ -42,7 +42,7 @@ export const Route = createFileRoute("/")({
         content: "Manage dynamic Google Review QR cards, print them, and see how customers scan.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: QRWorkspace,
