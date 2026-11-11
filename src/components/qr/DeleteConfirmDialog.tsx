@@ -49,8 +49,15 @@ export function DeleteConfirmDialog({
           <DialogTitle className="text-center">Delete QR code</DialogTitle>
           <DialogDescription className="text-center">
             Are you sure you want to delete{" "}
+            {code?.tracking_id && (
+              <span className="mr-1 inline-block rounded bg-secondary px-1.5 py-0.5 font-mono text-xs font-semibold text-foreground">
+                {code.tracking_id}
+              </span>
+            )}
             <strong className="break-words text-foreground">{code?.name}</strong>? This will
-            permanently remove the QR code and all its scan history. This action cannot be undone.
+            permanently remove the QR code and all its scan history. Tracking ID{" "}
+            <span className="font-mono">{code?.tracking_id}</span> will remain retired and never be
+            reassigned.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:justify-center">

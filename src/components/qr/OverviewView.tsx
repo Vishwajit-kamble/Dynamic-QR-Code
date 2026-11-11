@@ -61,6 +61,10 @@ export function OverviewView({
   }, []);
 
   const codeNames = useMemo(() => new Map(records.map((code) => [code.id, code.name])), [records]);
+  const codeTrackingIds = useMemo(
+    () => new Map(records.map((code) => [code.id, code.tracking_id])),
+    [records],
+  );
 
   const filteredScans = useMemo(() => {
     const cutoff = Date.now() - period * 24 * 60 * 60 * 1000;
@@ -367,6 +371,9 @@ export function OverviewView({
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-secondary-foreground">
                     {index + 1}
                   </span>
+                  <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                    {entry.tracking_id}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
                   <span className="text-sm font-medium tabular-nums">0</span>
                   <span className="text-xs text-muted-foreground">scans</span>
@@ -434,6 +441,11 @@ export function OverviewView({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="min-w-0 text-sm font-medium leading-snug text-foreground">
+                      {codeTrackingIds.get(scan.qr_code_id) && (
+                        <span className="mr-1.5 inline-block rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                          {codeTrackingIds.get(scan.qr_code_id)}
+                        </span>
+                      )}
                       {codeNames.get(scan.qr_code_id) ?? "QR code"}
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
@@ -474,7 +486,12 @@ export function OverviewView({
                       key={`${scan.qr_code_id}-${scan.scanned_at}-${index}`}
                       className="border-b border-border/70 last:border-0"
                     >
-                      <td className="max-w-[200px] truncate py-3 pr-3 font-medium">
+                      <td className="max-w-[240px] truncate py-3 pr-3 font-medium">
+                        {codeTrackingIds.get(scan.qr_code_id) && (
+                          <span className="mr-2 inline-block rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+                            {codeTrackingIds.get(scan.qr_code_id)}
+                          </span>
+                        )}
                         {codeNames.get(scan.qr_code_id) ?? "QR code"}
                       </td>
                       <td className="py-3 capitalize text-muted-foreground">

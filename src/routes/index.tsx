@@ -27,6 +27,7 @@ import {
   unlockAdminWorkspace,
   updateQrCode,
 } from "@/lib/qr-workspace.functions";
+import { downloadIndividualQrPng, downloadQrBatchZip } from "@/lib/qr-export";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -88,6 +89,10 @@ function QRWorkspace() {
   // Print filter target
   const [printTargetIds, setPrintTargetIds] = useState<string | string[] | null>(null);
 
+  // ZIP export progress
+  const [isExportingZip, setIsExportingZip] = useState(false);
+  const [zipProgressText, setZipProgressText] = useState("");
+
   // Delete confirmation modal state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [codeToDelete, setCodeToDelete] = useState<QRRecord | null>(null);
@@ -110,6 +115,7 @@ function QRWorkspace() {
 
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
+    await queryClient.refetchQueries({ queryKey: queryOptions.queryKey });
   }, [queryClient]);
 
   useEffect(() => {
@@ -148,6 +154,7 @@ function QRWorkspace() {
   const networkHost = data?.networkHost ?? null;
   const storageMode = data?.storageMode ?? "local-file";
   const authEnabled = data?.authEnabled ?? false;
+  const nextTrackingNumber = data?.nextTrackingNumber ?? 1;
 
   const lanOrigin = (() => {
     if (!origin || !networkHost) return null;
@@ -208,6 +215,57 @@ function QRWorkspace() {
     await refresh();
   };
 
+  const handleDownloadIndividual = async (code: QRRecord) => {
+    if (!activeQrOrigin) return;
+    try {
+      await downloadIndividualQrPng(`${activeQrOrigin}/r/${code.code}`, code.tracking_id);
+      toast.success(`Downloaded ${code.tracking_id}.png`);
+    } catch {
+      toast.error("Could not download QR image.");
+    }
+  };
+
+  const exportZipFromList = async (targetRecords: QRRecord[], filename = "QR-Studio-Cards.zip") => {
+    if (!activeQrOrigin || targetRecords.length === 0 || isExportingZip) return;
+    setIsExportingZip(true);
+    setZipProgressText(`0/${targetRecords.length}`);
+    try {
+      const items = targetRecords.map((item) => ({
+        url: `${activeQrOrigin}/r/${item.code}`,
+        trackingId: item.tracking_id,
+        trackingNumber: item.tracking_number,
+      }));
+      const result = await downloadQrBatchZip(items, {
+        filename,
+        onProgress: (done, total) => setZipProgressText(`${done}/${total}`),
+      });
+      toast.success(
+        `Downloaded ${result.count} QR ${result.count === 1 ? "image" : "images"} in ${result.filename}`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create ZIP archive.");
+    } finally {
+      setIsExportingZip(false);
+      setZipProgressText("");
+    }
+  };
+
+  const handleDownloadZipByIds = async (ids: string[]) => {
+    const freshData = queryClient.getQueryData<typeof data>(queryOptions.queryKey);
+    const sourceRecords = freshData?.codes ?? records;
+    const subset = sourceRecords.filter((item) => ids.includes(item.id));
+    if (subset.length === 0) return;
+
+    const sorted = [...subset].sort((a, b) => a.tracking_number - b.tracking_number);
+    const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
+    const filename =
+      sorted.length === 1
+        ? `QR-Studio-${first.tracking_id}.zip`
+        : `QR-Studio-${first.tracking_id}-to-${last.tracking_id}.zip`;
+    await exportZipFromList(sorted, filename);
+  };
+
   const handleBatchCreate = async (params: {
     prefix: string;
     count: number;
@@ -217,7 +275,20 @@ function QRWorkspace() {
     const result = await batchCreateCodes({ data: params });
     await refresh();
     setView("codes");
-    toast.success(`Generated ${result.count} Google Review cards`);
+    const firstId = result.trackingIds?.[0];
+    const lastId = result.trackingIds?.[result.trackingIds.length - 1];
+    const rangeLabel =
+      firstId && lastId && firstId !== lastId
+        ? ` (${firstId} – ${lastId})`
+        : firstId
+          ? ` (${firstId})`
+          : "";
+    toast.success(`Generated ${result.count} Google Review cards${rangeLabel}`, {
+      action: {
+        label: "Download ZIP",
+        onClick: () => void handleDownloadZipByIds(result.createdIds),
+      },
+    });
     return result.createdIds;
   };
 
@@ -278,6 +349,9 @@ function QRWorkspace() {
             view={view}
             codesCount={records.length}
             authEnabled={authEnabled}
+            isExportingZip={isExportingZip}
+            zipProgressText={zipProgressText}
+            onDownloadZip={() => void exportZipFromList(records)}
             onPrintAll={() => printLabel()}
             onBatchCreate={() => setBatchOpen(true)}
             onCreateCode={handleCreate}
@@ -392,7 +466,11 @@ function QRWorkspace() {
                     customOrigin={customOrigin}
                     onCustomOriginChange={handleCustomOriginChange}
                     storageMode={storageMode}
+                    isExportingZip={isExportingZip}
+                    zipProgressText={zipProgressText}
                     onPreview={handlePreview}
+                    onDownloadQr={(code) => void handleDownloadIndividual(code)}
+                    onDownloadZip={(subset) => void exportZipFromList(subset ?? records)}
                     onEdit={handleEdit}
                     onToggle={(code) => void handleToggle(code)}
                     onDelete={handleDeleteRequest}
@@ -426,6 +504,7 @@ function QRWorkspace() {
         onOpenChange={setEditorOpen}
         editing={editing}
         codesCount={records.length}
+        nextTrackingNumber={nextTrackingNumber}
         onSubmit={handleSubmit}
       />
 
@@ -433,8 +512,10 @@ function QRWorkspace() {
         open={batchOpen}
         onOpenChange={setBatchOpen}
         codesCount={records.length}
+        nextTrackingNumber={nextTrackingNumber}
         activeOrigin={activeQrOrigin}
         onBatchCreate={handleBatchCreate}
+        onDownloadBatchZip={(ids) => void handleDownloadZipByIds(ids)}
         onPrintBatch={(ids) => printLabel(ids)}
       />
 

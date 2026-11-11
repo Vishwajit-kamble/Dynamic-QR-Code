@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
+  Download,
   Globe,
   Layers,
+  LoaderCircle,
   MoreHorizontal,
   Plus,
   Printer,
@@ -25,6 +27,7 @@ import {
 import type { QRRecord, ScanRecord, StatusFilter } from "@/components/qr/types";
 
 const CODES_PAGE_SIZE = 10;
+type SortMode = "newest" | "tracking" | "name";
 
 interface CodesViewProps {
   records: QRRecord[];
@@ -36,8 +39,12 @@ interface CodesViewProps {
   onUseLanOriginChange?: (value: boolean) => void;
   customOrigin?: string;
   onCustomOriginChange?: (value: string) => void;
-  storageMode?: StorageMode;
+  storageMode?: StorageMode | undefined;
+  isExportingZip?: boolean | undefined;
+  zipProgressText?: string | undefined;
   onPreview: (code: QRRecord) => void;
+  onDownloadQr?: ((code: QRRecord) => void) | undefined;
+  onDownloadZip?: ((subset?: QRRecord[]) => void) | undefined;
   onEdit: (code: QRRecord) => void;
   onToggle: (code: QRRecord) => void;
   onDelete: (code: QRRecord) => void;
@@ -57,7 +64,11 @@ export function CodesView({
   customOrigin = "",
   onCustomOriginChange,
   storageMode = "local-file",
+  isExportingZip = false,
+  zipProgressText,
   onPreview,
+  onDownloadQr,
+  onDownloadZip,
   onEdit,
   onToggle,
   onDelete,
@@ -67,7 +78,7 @@ export function CodesView({
 }: CodesViewProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sortNewest, setSortNewest] = useState(true);
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const [editingBaseUrl, setEditingBaseUrl] = useState(false);
   const [baseUrlDraft, setBaseUrlDraft] = useState(customOrigin);
@@ -89,14 +100,16 @@ export function CodesView({
           return !code.is_active && !unlinked;
         })
         .filter((code) =>
-          `${code.name} ${code.code} ${code.destination_url}`
+          `${code.tracking_id} ${code.name} ${code.code} ${code.destination_url}`
             .toLowerCase()
             .includes(search.toLowerCase().trim()),
         )
-        .sort((a, b) =>
-          sortNewest ? b.created_at.localeCompare(a.created_at) : a.name.localeCompare(b.name),
-        ),
-    [records, search, sortNewest, statusFilter],
+        .sort((a, b) => {
+          if (sortMode === "tracking") return a.tracking_number - b.tracking_number;
+          if (sortMode === "name") return a.name.localeCompare(b.name);
+          return b.created_at.localeCompare(a.created_at);
+        }),
+    [records, search, sortMode, statusFilter],
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / CODES_PAGE_SIZE));
@@ -116,9 +129,19 @@ export function CodesView({
     setCurrentPage(1);
   };
   const handleSort = () => {
-    setSortNewest((current) => !current);
+    setSortMode((current) =>
+      current === "newest" ? "tracking" : current === "tracking" ? "name" : "newest",
+    );
     setCurrentPage(1);
   };
+  const sortLabel =
+    sortMode === "newest" ? "Newest" : sortMode === "tracking" ? "Tracking ID" : "Name";
+  const sortAriaLabel =
+    sortMode === "newest"
+      ? "Sorted by newest"
+      : sortMode === "tracking"
+        ? "Sorted by tracking ID"
+        : "Sorted by name";
 
   const isLocalOrPrivate = isPrivateOrLocalOrigin(origin);
   const isCloudDb = storageMode === "postgres" || storageMode === "supabase";
@@ -268,7 +291,7 @@ export function CodesView({
           <Input
             value={search}
             onChange={(event) => handleSearch(event.target.value)}
-            placeholder="Search by name, Card ID, or link"
+            placeholder="Search by QR-0001, name, Card ID, or link"
             aria-label="Search QR codes"
             className="h-10 pl-9 text-base md:text-sm"
           />
@@ -295,13 +318,31 @@ export function CodesView({
             variant="outline"
             className="h-10 shrink-0 px-3"
             onClick={handleSort}
-            aria-label={sortNewest ? "Sorted by newest" : "Sorted by name"}
-            title={sortNewest ? "Sorted by newest" : "Sorted by name"}
+            aria-label={sortAriaLabel}
+            title={sortAriaLabel}
           >
             <MoreHorizontal />
-            <span>{sortNewest ? "Newest" : "Name"}</span>
+            <span>{sortLabel}</span>
             <ChevronDown />
           </Button>
+          {onDownloadZip &&
+            filteredRecords.length > 0 &&
+            filteredRecords.length < records.length && (
+              <Button
+                variant="outline"
+                className="h-10 shrink-0 px-3"
+                onClick={() => onDownloadZip(filteredRecords)}
+                disabled={isExportingZip}
+                title={`Download ${filteredRecords.length} filtered QR images as ZIP`}
+              >
+                {isExportingZip ? <LoaderCircle className="animate-spin" /> : <Download />}
+                <span>
+                  {isExportingZip
+                    ? zipProgressText || "Zipping…"
+                    : `ZIP (${filteredRecords.length})`}
+                </span>
+              </Button>
+            )}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:hidden">
           {onBatchCreate && (
@@ -314,9 +355,21 @@ export function CodesView({
               <Layers /> Batch cards
             </Button>
           )}
+          {onDownloadZip && (
+            <Button
+              variant="outline"
+              className={`h-10 w-full ${onBatchCreate ? "" : "col-span-2"}`}
+              onClick={() => onDownloadZip()}
+              disabled={!records.length || isExportingZip}
+              aria-label="Download all QR codes as ZIP"
+            >
+              {isExportingZip ? <LoaderCircle className="animate-spin" /> : <Download />}
+              <span>{isExportingZip ? zipProgressText || "Zipping…" : "Download ZIP"}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
-            className={`h-10 w-full ${onBatchCreate ? "" : "col-span-2"}`}
+            className={`h-10 w-full ${onBatchCreate && onDownloadZip ? "col-span-2" : ""}`}
             onClick={() => onPrint()}
             disabled={!records.length}
             aria-label="Print all QR codes"
@@ -328,7 +381,7 @@ export function CodesView({
       {filteredRecords.length ? (
         <>
           <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_156px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground lg:grid">
+            <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_196px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground lg:grid">
               <span>QR code</span>
               <span>Destination</span>
               <span>Scans · 30d</span>
@@ -347,6 +400,7 @@ export function CodesView({
                   ).length
                 }
                 onPreview={() => onPreview(code)}
+                onDownload={onDownloadQr ? () => onDownloadQr(code) : undefined}
                 onEdit={() => onEdit(code)}
                 onToggle={() => onToggle(code)}
                 onPrint={() => onPrint(code)}

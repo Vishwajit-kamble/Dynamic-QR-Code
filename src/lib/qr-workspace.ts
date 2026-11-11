@@ -4,6 +4,29 @@ export const UNLINKED_DESTINATION_URL = "https://unlinked.qrstudio.invalid/assig
 
 export type StorageMode = "postgres" | "supabase" | "local-file" | "unconfigured-serverless";
 
+export function formatTrackingNumber(sequenceNumber: number): string {
+  const safe = Number.isFinite(sequenceNumber) ? Math.max(1, Math.floor(sequenceNumber)) : 1;
+  return String(safe).padStart(4, "0");
+}
+
+export function formatTrackingId(sequenceNumber: number): string {
+  return `QR-${formatTrackingNumber(sequenceNumber)}`;
+}
+
+export function formatBatchCardName(prefix: string, sequenceNumber: number): string {
+  const cleanPrefix = prefix.trim() || "Google Review Card";
+  const suffix = ` #${formatTrackingNumber(sequenceNumber)}`;
+  const maxPrefixLen = Math.max(1, 100 - suffix.length);
+  return `${cleanPrefix.slice(0, maxPrefixLen)}${suffix}`;
+}
+
+export function extractTrailingSequenceNumber(name: string): number | null {
+  const match = /#(\d+)\s*$/.exec(name.trim());
+  if (!match?.[1]) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export function canCreateQrCode(currentCount: number, addCount = 1): boolean {
   return currentCount + addCount <= MAX_QR_CODES;
 }

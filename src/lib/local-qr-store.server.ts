@@ -1,5 +1,8 @@
 import {
   canCreateQrCode,
+  extractTrailingSequenceNumber,
+  formatBatchCardName,
+  formatTrackingId,
   isUnlinkedDestination,
   MAX_QR_CODES,
   type StorageMode,
@@ -8,6 +11,8 @@ import {
 export interface StoredQrCode {
   id: string;
   code: string;
+  tracking_number: number;
+  tracking_id: string;
   name: string;
   destination_url: string;
   is_active: boolean;
@@ -28,6 +33,7 @@ export type ResolveScanResult =
   | { status: "not_found" };
 
 interface WorkspaceStoreData {
+  lastTrackingNumber: number;
   codes: StoredQrCode[];
   scans: StoredQrScan[];
 }
@@ -37,6 +43,7 @@ const DEFAULT_OWNER_ID = "00000000-0000-0000-0000-000000000000";
 const GLOBAL_STORE_KEY = "__qrStudioWorkspaceStore";
 const GLOBAL_STORE_MTIME_KEY = "__qrStudioWorkspaceStoreMtime";
 const GLOBAL_WRITE_QUEUE_KEY = "__qrStudioWorkspaceWriteQueue";
+const GLOBAL_MUTATION_QUEUE_KEY = "__qrStudioWorkspaceMutationQueue";
 const GLOBAL_PG_CLIENT_KEY = "__qrStudioPgClient";
 const GLOBAL_PG_URL_KEY = "__qrStudioPgUrl";
 const GLOBAL_PG_SCHEMA_KEY = "__qrStudioPgSchema";
@@ -47,10 +54,37 @@ const globalScope = globalThis as typeof globalThis & {
   [GLOBAL_STORE_KEY]?: WorkspaceStoreData;
   [GLOBAL_STORE_MTIME_KEY]?: number;
   [GLOBAL_WRITE_QUEUE_KEY]?: Promise<void>;
+  [GLOBAL_MUTATION_QUEUE_KEY]?: Promise<unknown>;
   [GLOBAL_PG_CLIENT_KEY]?: SqlTag;
   [GLOBAL_PG_URL_KEY]?: string;
   [GLOBAL_PG_SCHEMA_KEY]?: Promise<void>;
 };
+
+function compareLegacyCreationOrder(
+  a: { id: string; name: string; created_at: string },
+  b: { id: string; name: string; created_at: string },
+): number {
+  const timeA = new Date(a.created_at).getTime();
+  const timeB = new Date(b.created_at).getTime();
+  if (Number.isFinite(timeA) && Number.isFinite(timeB) && Math.abs(timeA - timeB) < 2000) {
+    const seqA = extractTrailingSequenceNumber(a.name);
+    const seqB = extractTrailingSequenceNumber(b.name);
+    if (seqA !== null && seqB !== null && seqA !== seqB) {
+      return seqA - seqB;
+    }
+  }
+  if (Number.isFinite(timeA) && Number.isFinite(timeB) && timeA !== timeB) {
+    return timeA - timeB;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+function withLocalStoreLock<T>(task: () => Promise<T>): Promise<T> {
+  const prev = globalScope[GLOBAL_MUTATION_QUEUE_KEY] ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(task);
+  globalScope[GLOBAL_MUTATION_QUEUE_KEY] = next;
+  return next;
+}
 
 function toIsoString(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
@@ -155,12 +189,20 @@ async function ensurePostgresSchema(sql: SqlTag): Promise<void> {
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           owner_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
           code text NOT NULL UNIQUE CHECK (code ~ '^[A-Za-z0-9_-]{8,32}$'),
+          tracking_number integer,
+          tracking_id text,
           name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120),
           destination_url text NOT NULL CHECK (destination_url ~* '^https?://'),
           is_active boolean NOT NULL DEFAULT true,
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
         )
+      `;
+      await sql`ALTER TABLE public.qr_codes ADD COLUMN IF NOT EXISTS tracking_number integer`;
+      await sql`ALTER TABLE public.qr_codes ADD COLUMN IF NOT EXISTS tracking_id text`;
+      await sql`
+        CREATE SEQUENCE IF NOT EXISTS public.qr_tracking_seq
+        START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1
       `;
       await sql`
         CREATE INDEX IF NOT EXISTS qr_codes_owner_created_idx
@@ -178,6 +220,80 @@ async function ensurePostgresSchema(sql: SqlTag): Promise<void> {
       await sql`
         CREATE INDEX IF NOT EXISTS qr_scans_code_time_idx
         ON public.qr_scans (qr_code_id, scanned_at DESC)
+      `;
+
+      // Backfill any existing rows missing a permanent tracking number/ID and align sequence
+      await sql.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(982451653)`;
+        const maxRows = await tx`
+          SELECT COALESCE(MAX(tracking_number), 0)::int AS max_num
+          FROM public.qr_codes
+        `;
+        const seqStateRows = await tx`
+          SELECT last_value::int AS last_value, is_called
+          FROM public.qr_tracking_seq
+        `;
+        const maxExisting = Number(maxRows[0]?.["max_num"] ?? 0);
+        const seqLast = Number(seqStateRows[0]?.["last_value"] ?? 1);
+        const seqCalled = Boolean(seqStateRows[0]?.["is_called"]);
+        let cursor = Math.max(maxExisting, seqCalled ? seqLast : 0);
+
+        const missingRows = await tx`
+          SELECT id, name, created_at, tracking_number
+          FROM public.qr_codes
+          WHERE tracking_number IS NULL OR tracking_id IS NULL
+        `;
+
+        if (missingRows.length > 0) {
+          const withNum = missingRows.filter(
+            (r) => typeof r["tracking_number"] === "number" && Number(r["tracking_number"]) > 0,
+          );
+          for (const row of withNum) {
+            const seq = Number(row["tracking_number"]);
+            const trackingId = formatTrackingId(seq);
+            await tx`
+              UPDATE public.qr_codes
+              SET tracking_id = ${trackingId}
+              WHERE id = ${String(row["id"])}::uuid
+            `;
+          }
+
+          const needsSeq = missingRows
+            .filter(
+              (r) => typeof r["tracking_number"] !== "number" || Number(r["tracking_number"]) <= 0,
+            )
+            .map((r) => ({
+              id: String(r["id"]),
+              name: String(r["name"]),
+              created_at: toIsoString(r["created_at"]),
+            }))
+            .sort(compareLegacyCreationOrder);
+
+          for (const row of needsSeq) {
+            cursor += 1;
+            const trackingId = formatTrackingId(cursor);
+            await tx`
+              UPDATE public.qr_codes
+              SET tracking_number = ${cursor}, tracking_id = ${trackingId}
+              WHERE id = ${row.id}::uuid
+            `;
+          }
+        }
+
+        if (cursor > 0 && (!seqCalled || cursor > seqLast)) {
+          await tx`SELECT setval('public.qr_tracking_seq', ${cursor}, true)`;
+        }
+      });
+
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_tracking_number_uidx
+        ON public.qr_codes (tracking_number)
+        WHERE tracking_number IS NOT NULL
+      `;
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS qr_codes_tracking_id_uidx
+        ON public.qr_codes (tracking_id)
+        WHERE tracking_id IS NOT NULL
       `;
     })().catch((err) => {
       delete globalScope[GLOBAL_PG_SCHEMA_KEY];
@@ -235,6 +351,95 @@ async function getLanHost(): Promise<string | null> {
   }
 }
 
+function normalizeStoreTrackingIds(raw: Partial<WorkspaceStoreData>): {
+  store: WorkspaceStoreData;
+  migrated: boolean;
+} {
+  const rawCodes = Array.isArray(raw.codes) ? (raw.codes as Partial<StoredQrCode>[]) : [];
+  const rawScans = Array.isArray(raw.scans) ? raw.scans : [];
+
+  let maxSeq =
+    typeof raw.lastTrackingNumber === "number" &&
+    Number.isInteger(raw.lastTrackingNumber) &&
+    raw.lastTrackingNumber >= 0
+      ? raw.lastTrackingNumber
+      : 0;
+
+  let migrated = typeof raw.lastTrackingNumber !== "number";
+  const usedSeqs = new Set<number>();
+
+  for (const code of rawCodes) {
+    if (
+      typeof code.tracking_number === "number" &&
+      Number.isInteger(code.tracking_number) &&
+      code.tracking_number > 0
+    ) {
+      if (code.tracking_number > maxSeq) {
+        maxSeq = code.tracking_number;
+        migrated = true;
+      }
+      usedSeqs.add(code.tracking_number);
+    }
+  }
+
+  const missing = rawCodes
+    .filter(
+      (code) =>
+        typeof code.tracking_number !== "number" ||
+        !Number.isInteger(code.tracking_number) ||
+        code.tracking_number <= 0,
+    )
+    .map((code) => ({
+      ref: code,
+      id: String(code.id ?? ""),
+      name: String(code.name ?? ""),
+      created_at: toIsoString(code.created_at),
+    }))
+    .sort(compareLegacyCreationOrder);
+
+  if (missing.length > 0) {
+    migrated = true;
+    for (const item of missing) {
+      maxSeq += 1;
+      while (usedSeqs.has(maxSeq)) {
+        maxSeq += 1;
+      }
+      usedSeqs.add(maxSeq);
+      item.ref.tracking_number = maxSeq;
+      item.ref.tracking_id = formatTrackingId(maxSeq);
+    }
+  }
+
+  const normalizedCodes: StoredQrCode[] = rawCodes.map((code) => {
+    const seq = Number(code.tracking_number);
+    const expectedId = formatTrackingId(seq);
+    if (code.tracking_id !== expectedId) {
+      migrated = true;
+    }
+    return {
+      id: String(code.id),
+      code: String(code.code),
+      tracking_number: seq,
+      tracking_id:
+        typeof code.tracking_id === "string" && code.tracking_id ? code.tracking_id : expectedId,
+      name: String(code.name),
+      destination_url: String(code.destination_url),
+      is_active: Boolean(code.is_active),
+      created_at: toIsoString(code.created_at),
+      updated_at: toIsoString(code.updated_at),
+    };
+  });
+
+  return {
+    store: {
+      lastTrackingNumber: maxSeq,
+      codes: normalizedCodes,
+      scans: rawScans,
+    },
+    migrated,
+  };
+}
+
 async function readLocalStore(): Promise<WorkspaceStoreData> {
   const fsHelpers = await getFsHelpers();
   if (fsHelpers) {
@@ -245,12 +450,12 @@ async function readLocalStore(): Promise<WorkspaceStoreData> {
       }
       const raw = await fsHelpers.fs.readFile(fsHelpers.dataFile, "utf8");
       const parsed = JSON.parse(raw) as Partial<WorkspaceStoreData>;
-      const loaded: WorkspaceStoreData = {
-        codes: Array.isArray(parsed.codes) ? parsed.codes : [],
-        scans: Array.isArray(parsed.scans) ? parsed.scans : [],
-      };
+      const { store: loaded, migrated } = normalizeStoreTrackingIds(parsed);
       globalScope[GLOBAL_STORE_KEY] = loaded;
       globalScope[GLOBAL_STORE_MTIME_KEY] = stat.mtimeMs;
+      if (migrated) {
+        await persistLocalStore(loaded);
+      }
       return loaded;
     } catch {
       // File does not exist yet or cannot be read; fall through
@@ -261,7 +466,7 @@ async function readLocalStore(): Promise<WorkspaceStoreData> {
     return globalScope[GLOBAL_STORE_KEY];
   }
 
-  const empty: WorkspaceStoreData = { codes: [], scans: [] };
+  const empty: WorkspaceStoreData = { lastTrackingNumber: 0, codes: [], scans: [] };
   globalScope[GLOBAL_STORE_KEY] = empty;
   return empty;
 }
@@ -291,15 +496,70 @@ function generateShortCode(): string {
 }
 
 function mapPgCodeRow(row: Record<string, unknown>): StoredQrCode {
+  const trackingNumber = Number(row["tracking_number"] ?? 0);
+  const trackingId =
+    typeof row["tracking_id"] === "string" && row["tracking_id"]
+      ? row["tracking_id"]
+      : formatTrackingId(trackingNumber || 1);
   return {
     id: String(row["id"]),
     code: String(row["code"]),
+    tracking_number: trackingNumber,
+    tracking_id: trackingId,
     name: String(row["name"]),
     destination_url: String(row["destination_url"]),
     is_active: Boolean(row["is_active"]),
     created_at: toIsoString(row["created_at"]),
     updated_at: toIsoString(row["updated_at"]),
   };
+}
+
+function hydrateSupabaseCodeRows(rows: Record<string, unknown>[]): {
+  codes: StoredQrCode[];
+  nextTrackingNumber: number;
+} {
+  let maxSeq = 0;
+  for (const row of rows) {
+    const seq = Number(row["tracking_number"] ?? 0);
+    if (Number.isInteger(seq) && seq > maxSeq) maxSeq = seq;
+  }
+  const missing = rows
+    .filter((row) => !(Number(row["tracking_number"] ?? 0) > 0))
+    .map((row) => ({
+      row,
+      id: String(row["id"]),
+      name: String(row["name"]),
+      created_at: toIsoString(row["created_at"]),
+    }))
+    .sort(compareLegacyCreationOrder);
+
+  const assigned = new Map<string, number>();
+  for (const item of missing) {
+    maxSeq += 1;
+    assigned.set(item.id, maxSeq);
+  }
+
+  const codes = rows.map((row) => {
+    const existingSeq = Number(row["tracking_number"] ?? 0);
+    const seq = existingSeq > 0 ? existingSeq : (assigned.get(String(row["id"])) ?? 1);
+    const trackingId =
+      typeof row["tracking_id"] === "string" && row["tracking_id"]
+        ? row["tracking_id"]
+        : formatTrackingId(seq);
+    return {
+      id: String(row["id"]),
+      code: String(row["code"]),
+      tracking_number: seq,
+      tracking_id: trackingId,
+      name: String(row["name"]),
+      destination_url: String(row["destination_url"]),
+      is_active: Boolean(row["is_active"]),
+      created_at: toIsoString(row["created_at"]),
+      updated_at: toIsoString(row["updated_at"]),
+    };
+  });
+
+  return { codes, nextTrackingNumber: maxSeq + 1 };
 }
 
 function mapPgScanRow(row: Record<string, unknown>): StoredQrScan {
@@ -330,24 +590,35 @@ export async function listQrWorkspace() {
       scans: [] as StoredQrScan[],
       networkHost: null,
       storageMode,
+      nextTrackingNumber: 1,
     };
   }
 
   if (storageMode === "postgres") {
     const sql = await getPgClient();
     await ensurePostgresSchema(sql);
-    const codeRows = await sql`
-      SELECT id, code, name, destination_url, is_active, created_at, updated_at
-      FROM public.qr_codes
-      ORDER BY created_at DESC
-    `;
-    const scanRows = await sql`
-      SELECT qr_code_id, scanned_at, device_type, referrer_host
-      FROM public.qr_scans
-      WHERE scanned_at >= ${cutoffIso}::timestamptz
-      ORDER BY scanned_at DESC
-      LIMIT 5000
-    `;
+    const [codeRows, scanRows, seqRows] = await Promise.all([
+      sql`
+        SELECT id, code, tracking_number, tracking_id, name, destination_url, is_active, created_at, updated_at
+        FROM public.qr_codes
+        ORDER BY created_at DESC
+      `,
+      sql`
+        SELECT qr_code_id, scanned_at, device_type, referrer_host
+        FROM public.qr_scans
+        WHERE scanned_at >= ${cutoffIso}::timestamptz
+        ORDER BY scanned_at DESC
+        LIMIT 5000
+      `,
+      sql`
+        SELECT last_value::int AS last_value, is_called
+        FROM public.qr_tracking_seq
+      `,
+    ]);
+    const lastVal = Number(seqRows[0]?.["last_value"] ?? 1);
+    const isCalled = Boolean(seqRows[0]?.["is_called"]);
+    const nextTrackingNumber = isCalled ? lastVal + 1 : lastVal;
+
     return {
       codes: codeRows.map((row) => mapPgCodeRow(row)),
       analytics: [] as {
@@ -361,16 +632,14 @@ export async function listQrWorkspace() {
       scans: scanRows.map((row) => mapPgScanRow(row)),
       networkHost,
       storageMode,
+      nextTrackingNumber,
     };
   }
 
   if (storageMode === "supabase") {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [codesRes, scansRes] = await Promise.all([
-      supabaseAdmin
-        .from("qr_codes")
-        .select("id, code, name, destination_url, is_active, created_at, updated_at")
-        .order("created_at", { ascending: false }),
+      supabaseAdmin.from("qr_codes").select("*").order("created_at", { ascending: false }),
       supabaseAdmin
         .from("qr_scans")
         .select("qr_code_id, scanned_at, device_type, referrer_host")
@@ -380,8 +649,11 @@ export async function listQrWorkspace() {
     ]);
     if (codesRes.error) throw new Error(codesRes.error.message);
     if (scansRes.error) throw new Error(scansRes.error.message);
+    const hydrated = hydrateSupabaseCodeRows(
+      (codesRes.data ?? []) as unknown as Record<string, unknown>[],
+    );
     return {
-      codes: (codesRes.data ?? []) as StoredQrCode[],
+      codes: hydrated.codes,
       analytics: [] as {
         device_count: number;
         device_type: string;
@@ -393,6 +665,7 @@ export async function listQrWorkspace() {
       scans: (scansRes.data ?? []) as StoredQrScan[],
       networkHost,
       storageMode,
+      nextTrackingNumber: hydrated.nextTrackingNumber,
     };
   }
 
@@ -417,6 +690,7 @@ export async function listQrWorkspace() {
     scans,
     networkHost,
     storageMode,
+    nextTrackingNumber: store.lastTrackingNumber + 1,
   };
 }
 
@@ -441,29 +715,43 @@ export async function createLocalQrCode(
   if (storageMode === "postgres") {
     const sql = await getPgClient();
     await ensurePostgresSchema(sql);
-    const countRows = await sql`SELECT count(*)::int AS count FROM public.qr_codes`;
-    const count = Number(countRows[0]?.["count"] ?? 0);
-    if (!canCreateQrCode(count)) {
-      throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
-    }
-    const id = crypto.randomUUID();
-    const code = generateShortCode();
-    await sql`
-      INSERT INTO public.qr_codes (id, owner_id, code, name, destination_url, is_active, created_at, updated_at)
-      VALUES (${id}::uuid, ${DEFAULT_OWNER_ID}::uuid, ${code}, ${name}, ${destinationUrl}, ${isActive}, ${now}::timestamptz, ${now}::timestamptz)
-    `;
-    return { ok: true, id, code };
+    return sql.begin(async (tx) => {
+      const countRows = await tx`SELECT count(*)::int AS count FROM public.qr_codes`;
+      const count = Number(countRows[0]?.["count"] ?? 0);
+      if (!canCreateQrCode(count)) {
+        throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
+      }
+      const seqRows = await tx`SELECT nextval('public.qr_tracking_seq')::int AS seq`;
+      const trackingNumber = Number(seqRows[0]!["seq"]);
+      const trackingId = formatTrackingId(trackingNumber);
+      const id = crypto.randomUUID();
+      const code = generateShortCode();
+      await tx`
+        INSERT INTO public.qr_codes (id, owner_id, code, tracking_number, tracking_id, name, destination_url, is_active, created_at, updated_at)
+        VALUES (${id}::uuid, ${DEFAULT_OWNER_ID}::uuid, ${code}, ${trackingNumber}, ${trackingId}, ${name}, ${destinationUrl}, ${isActive}, ${now}::timestamptz, ${now}::timestamptz)
+      `;
+      return {
+        ok: true,
+        id,
+        code,
+        tracking_number: trackingNumber,
+        tracking_id: trackingId,
+      };
+    });
   }
 
   if (storageMode === "supabase") {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { count, error: countErr } = await supabaseAdmin
-      .from("qr_codes")
-      .select("id", { count: "exact", head: true });
-    if (countErr) throw new Error(countErr.message);
-    if (!canCreateQrCode(count ?? 0)) {
+    const { data: existingRows, error: listErr } = await supabaseAdmin.from("qr_codes").select("*");
+    if (listErr) throw new Error(listErr.message);
+    if (!canCreateQrCode(existingRows?.length ?? 0)) {
       throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
     }
+    const hydrated = hydrateSupabaseCodeRows(
+      (existingRows ?? []) as unknown as Record<string, unknown>[],
+    );
+    const trackingNumber = hydrated.nextTrackingNumber;
+    const trackingId = formatTrackingId(trackingNumber);
     const id = crypto.randomUUID();
     const code = generateShortCode();
     const { error } = await supabaseAdmin.from("qr_codes").insert({
@@ -477,32 +765,52 @@ export async function createLocalQrCode(
       updated_at: now,
     });
     if (error) throw new Error(error.message);
-    return { ok: true, id, code };
+    return {
+      ok: true,
+      id,
+      code,
+      tracking_number: trackingNumber,
+      tracking_id: trackingId,
+    };
   }
 
-  const store = await readLocalStore();
-  if (!canCreateQrCode(store.codes.length)) {
-    throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
-  }
+  return withLocalStoreLock(async () => {
+    const store = await readLocalStore();
+    if (!canCreateQrCode(store.codes.length)) {
+      throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
+    }
 
-  let code = generateShortCode();
-  while (store.codes.some((existing) => existing.code === code)) {
-    code = generateShortCode();
-  }
+    let code = generateShortCode();
+    while (store.codes.some((existing) => existing.code === code)) {
+      code = generateShortCode();
+    }
 
-  const record: StoredQrCode = {
-    id: crypto.randomUUID(),
-    code,
-    name,
-    destination_url: destinationUrl,
-    is_active: isActive,
-    created_at: now,
-    updated_at: now,
-  };
+    const trackingNumber = store.lastTrackingNumber + 1;
+    const trackingId = formatTrackingId(trackingNumber);
+    store.lastTrackingNumber = trackingNumber;
 
-  store.codes.unshift(record);
-  await persistLocalStore(store);
-  return { ok: true, id: record.id, code: record.code };
+    const record: StoredQrCode = {
+      id: crypto.randomUUID(),
+      code,
+      tracking_number: trackingNumber,
+      tracking_id: trackingId,
+      name,
+      destination_url: destinationUrl,
+      is_active: isActive,
+      created_at: now,
+      updated_at: now,
+    };
+
+    store.codes.unshift(record);
+    await persistLocalStore(store);
+    return {
+      ok: true,
+      id: record.id,
+      code: record.code,
+      tracking_number: record.tracking_number,
+      tracking_id: record.tracking_id,
+    };
+  });
 }
 
 export async function batchCreateLocalQrCodes(
@@ -521,53 +829,60 @@ export async function batchCreateLocalQrCodes(
     throw new Error("Blank inventory cards must start unlinked until a customer link is set.");
   }
 
-  const padWidth = count >= 100 ? 3 : 2;
-  const buildCardName = (index: number) =>
-    count === 1 ? prefix : `${prefix} #${String(index + 1).padStart(padWidth, "0")}`.slice(0, 100);
-
   const baseTime = Date.now();
 
   if (storageMode === "postgres") {
     const sql = await getPgClient();
     await ensurePostgresSchema(sql);
     const createdIds: string[] = [];
+    const trackingIds: string[] = [];
     await sql.begin(async (tx) => {
       const countRows = await tx`SELECT count(*)::int AS count FROM public.qr_codes`;
       const existingCount = Number(countRows[0]?.["count"] ?? 0);
       if (!canCreateQrCode(existingCount, count)) {
         throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
       }
+      const seqRows = await tx`
+        SELECT nextval('public.qr_tracking_seq')::int AS seq
+        FROM generate_series(1, ${count})
+      `;
       for (let i = 0; i < count; i++) {
+        const seq = Number(seqRows[i]!["seq"]);
+        const trackingId = formatTrackingId(seq);
+        const cardName = formatBatchCardName(prefix, seq);
         const id = crypto.randomUUID();
         const code = generateShortCode();
-        const cardName = buildCardName(i);
         const ts = new Date(baseTime - i).toISOString();
         await tx`
-          INSERT INTO public.qr_codes (id, owner_id, code, name, destination_url, is_active, created_at, updated_at)
-          VALUES (${id}::uuid, ${DEFAULT_OWNER_ID}::uuid, ${code}, ${cardName}, ${destinationUrl}, ${isActive}, ${ts}::timestamptz, ${ts}::timestamptz)
+          INSERT INTO public.qr_codes (id, owner_id, code, tracking_number, tracking_id, name, destination_url, is_active, created_at, updated_at)
+          VALUES (${id}::uuid, ${DEFAULT_OWNER_ID}::uuid, ${code}, ${seq}, ${trackingId}, ${cardName}, ${destinationUrl}, ${isActive}, ${ts}::timestamptz, ${ts}::timestamptz)
         `;
         createdIds.push(id);
+        trackingIds.push(trackingId);
       }
     });
-    return { ok: true, count, createdIds };
+    return { ok: true, count, createdIds, trackingIds };
   }
 
   if (storageMode === "supabase") {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { count: existingCount, error: countErr } = await supabaseAdmin
-      .from("qr_codes")
-      .select("id", { count: "exact", head: true });
-    if (countErr) throw new Error(countErr.message);
-    if (!canCreateQrCode(existingCount ?? 0, count)) {
+    const { data: existingRows, error: listErr } = await supabaseAdmin.from("qr_codes").select("*");
+    if (listErr) throw new Error(listErr.message);
+    if (!canCreateQrCode(existingRows?.length ?? 0, count)) {
       throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
     }
+    const hydrated = hydrateSupabaseCodeRows(
+      (existingRows ?? []) as unknown as Record<string, unknown>[],
+    );
+    const startSeq = hydrated.nextTrackingNumber;
     const rows = Array.from({ length: count }, (_, i) => {
+      const seq = startSeq + i;
       const ts = new Date(baseTime - i).toISOString();
       return {
         id: crypto.randomUUID(),
         owner_id: DEFAULT_OWNER_ID,
         code: generateShortCode(),
-        name: buildCardName(i),
+        name: formatBatchCardName(prefix, seq),
         destination_url: destinationUrl,
         is_active: isActive,
         created_at: ts,
@@ -576,37 +891,55 @@ export async function batchCreateLocalQrCodes(
     });
     const { error } = await supabaseAdmin.from("qr_codes").insert(rows);
     if (error) throw new Error(error.message);
-    return { ok: true, count, createdIds: rows.map((row) => row.id) };
+    return {
+      ok: true,
+      count,
+      createdIds: rows.map((row) => row.id),
+      trackingIds: rows.map((_, i) => formatTrackingId(startSeq + i)),
+    };
   }
 
-  const store = await readLocalStore();
-  if (!canCreateQrCode(store.codes.length, count)) {
-    throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
-  }
-
-  const usedCodes = new Set(store.codes.map((item) => item.code));
-  const created: StoredQrCode[] = [];
-  for (let i = 0; i < count; i++) {
-    let code = generateShortCode();
-    while (usedCodes.has(code)) {
-      code = generateShortCode();
+  return withLocalStoreLock(async () => {
+    const store = await readLocalStore();
+    if (!canCreateQrCode(store.codes.length, count)) {
+      throw new Error(`A workspace can have up to ${MAX_QR_CODES} QR codes.`);
     }
-    usedCodes.add(code);
-    const ts = new Date(baseTime - i).toISOString();
-    created.push({
-      id: crypto.randomUUID(),
-      code,
-      name: buildCardName(i),
-      destination_url: destinationUrl,
-      is_active: isActive,
-      created_at: ts,
-      updated_at: ts,
-    });
-  }
 
-  store.codes = [...created, ...store.codes];
-  await persistLocalStore(store);
-  return { ok: true, count, createdIds: created.map((row) => row.id) };
+    const usedCodes = new Set(store.codes.map((item) => item.code));
+    const created: StoredQrCode[] = [];
+    for (let i = 0; i < count; i++) {
+      let code = generateShortCode();
+      while (usedCodes.has(code)) {
+        code = generateShortCode();
+      }
+      usedCodes.add(code);
+
+      const seq = store.lastTrackingNumber + 1;
+      store.lastTrackingNumber = seq;
+      const trackingId = formatTrackingId(seq);
+      const ts = new Date(baseTime - i).toISOString();
+      created.push({
+        id: crypto.randomUUID(),
+        code,
+        tracking_number: seq,
+        tracking_id: trackingId,
+        name: formatBatchCardName(prefix, seq),
+        destination_url: destinationUrl,
+        is_active: isActive,
+        created_at: ts,
+        updated_at: ts,
+      });
+    }
+
+    store.codes = [...created, ...store.codes];
+    await persistLocalStore(store);
+    return {
+      ok: true,
+      count,
+      createdIds: created.map((row) => row.id),
+      trackingIds: created.map((row) => row.tracking_id),
+    };
+  });
 }
 
 export async function updateLocalQrCode(id: string, name: string, destinationUrl: string) {
@@ -667,23 +1000,25 @@ export async function updateLocalQrCode(id: string, name: string, destinationUrl
     return { ok: true };
   }
 
-  const store = await readLocalStore();
-  const target = store.codes.find((item) => item.id === id);
-  if (!target) {
-    throw new Error("Could not find this QR code.");
-  }
+  return withLocalStoreLock(async () => {
+    const store = await readLocalStore();
+    const target = store.codes.find((item) => item.id === id);
+    if (!target) {
+      throw new Error("Could not find this QR code.");
+    }
 
-  const wasUnlinked = isUnlinkedDestination(target.destination_url);
-  target.name = name;
-  target.destination_url = destinationUrl;
-  if (wasUnlinked && autoActivate) {
-    target.is_active = true;
-  } else if (isUnlinkedDestination(destinationUrl)) {
-    target.is_active = false;
-  }
-  target.updated_at = now;
-  await persistLocalStore(store);
-  return { ok: true };
+    const wasUnlinked = isUnlinkedDestination(target.destination_url);
+    target.name = name;
+    target.destination_url = destinationUrl;
+    if (wasUnlinked && autoActivate) {
+      target.is_active = true;
+    } else if (isUnlinkedDestination(destinationUrl)) {
+      target.is_active = false;
+    }
+    target.updated_at = now;
+    await persistLocalStore(store);
+    return { ok: true };
+  });
 }
 
 export async function toggleLocalQrCode(id: string) {
@@ -732,19 +1067,21 @@ export async function toggleLocalQrCode(id: string) {
     return { ok: true };
   }
 
-  const store = await readLocalStore();
-  const target = store.codes.find((item) => item.id === id);
-  if (!target) {
-    throw new Error("Could not find this QR code.");
-  }
-  if (!target.is_active && isUnlinkedDestination(target.destination_url)) {
-    throw new Error("Add the customer's Google Review link before activating this card.");
-  }
+  return withLocalStoreLock(async () => {
+    const store = await readLocalStore();
+    const target = store.codes.find((item) => item.id === id);
+    if (!target) {
+      throw new Error("Could not find this QR code.");
+    }
+    if (!target.is_active && isUnlinkedDestination(target.destination_url)) {
+      throw new Error("Add the customer's Google Review link before activating this card.");
+    }
 
-  target.is_active = !target.is_active;
-  target.updated_at = now;
-  await persistLocalStore(store);
-  return { ok: true };
+    target.is_active = !target.is_active;
+    target.updated_at = now;
+    await persistLocalStore(store);
+    return { ok: true };
+  });
 }
 
 export async function deleteLocalQrCode(id: string) {
@@ -769,16 +1106,19 @@ export async function deleteLocalQrCode(id: string) {
     return { ok: true };
   }
 
-  const store = await readLocalStore();
-  const index = store.codes.findIndex((item) => item.id === id);
-  if (index === -1) {
-    throw new Error("Could not find this QR code.");
-  }
+  return withLocalStoreLock(async () => {
+    const store = await readLocalStore();
+    const index = store.codes.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error("Could not find this QR code.");
+    }
 
-  store.codes.splice(index, 1);
-  store.scans = store.scans.filter((scan) => scan.qr_code_id !== id);
-  await persistLocalStore(store);
-  return { ok: true };
+    // Notice: store.lastTrackingNumber is intentionally preserved so deleted tracking IDs are never reused
+    store.codes.splice(index, 1);
+    store.scans = store.scans.filter((scan) => scan.qr_code_id !== id);
+    await persistLocalStore(store);
+    return { ok: true };
+  });
 }
 
 function normalizeScanMeta(deviceType: string, referrerHost: string | null) {

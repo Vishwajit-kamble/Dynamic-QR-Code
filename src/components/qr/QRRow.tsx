@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Link2, Pencil, Printer, Trash2, X } from "lucide-react";
+import { Check, Download, ExternalLink, Link2, Pencil, Printer, Trash2, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { isUnlinkedDestination } from "@/lib/qr-workspace";
@@ -9,6 +9,7 @@ interface QRRowProps {
   url: string;
   scans: number;
   onPreview: () => void;
+  onDownload?: (() => void) | undefined;
   onEdit: () => void;
   onToggle: () => void;
   onPrint: () => void;
@@ -20,6 +21,7 @@ export function QRRow({
   url,
   scans,
   onPreview,
+  onDownload,
   onEdit,
   onToggle,
   onPrint,
@@ -28,19 +30,22 @@ export function QRRow({
   const isUnlinked = isUnlinkedDestination(code.destination_url);
 
   return (
-    <article className="flex flex-col gap-2.5 border-b border-border px-3 py-3.5 last:border-0 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_156px] lg:items-center lg:gap-3 lg:px-4">
+    <article className="flex flex-col gap-2.5 border-b border-border px-3 py-3.5 last:border-0 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_105px_196px] lg:items-center lg:gap-3 lg:px-4">
       <div className="flex min-w-0 items-start gap-3 sm:items-center">
         <button
           type="button"
           onClick={onPreview}
           aria-label={`Preview QR code for ${code.name}`}
-          title="Click to enlarge & download PNG/SVG"
+          title={`Click to enlarge & download ${code.tracking_id}`}
           className="flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-white p-0.5 transition-shadow hover:ring-2 hover:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <QRCodeSVG value={url || "https://example.com"} size={42} level="M" includeMargin />
+          <QRCodeSVG value={url || "https://example.com"} size={42} level="Q" includeMargin />
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex shrink-0 items-center rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-foreground">
+              {code.tracking_id}
+            </span>
             <span className="min-w-0 break-words text-sm font-medium leading-snug lg:truncate">
               {code.name}
             </span>
@@ -92,7 +97,21 @@ export function QRRow({
         <span className="text-xs text-muted-foreground">{scans === 1 ? "scan" : "scans"}</span>
       </span>
 
-      <div className="grid grid-cols-4 gap-1.5 border-t border-border/60 pt-2 lg:flex lg:items-center lg:justify-end lg:gap-1 lg:border-t-0 lg:pt-0">
+      <div
+        className={`grid ${onDownload ? "grid-cols-5" : "grid-cols-4"} gap-1.5 border-t border-border/60 pt-2 lg:flex lg:items-center lg:justify-end lg:gap-1 lg:border-t-0 lg:pt-0`}
+      >
+        {onDownload && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-full lg:size-9"
+            onClick={onDownload}
+            aria-label={`Download ${code.tracking_id}`}
+            title={`Download ${code.tracking_id}.png`}
+          >
+            <Download />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"

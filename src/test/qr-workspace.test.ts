@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   canCreateQrCode,
+  formatBatchCardName,
+  formatTrackingId,
+  formatTrackingNumber,
   isPrivateOrLocalOrigin,
   isUnlinkedDestination,
   MAX_QR_CODES,
@@ -36,6 +39,14 @@ describe("QR workspace capacity & helpers", () => {
     expect(isPrivateOrLocalOrigin("http://10.224.253.245:8081")).toBe(true);
     expect(isPrivateOrLocalOrigin("http://192.168.1.50:8080")).toBe(true);
     expect(isPrivateOrLocalOrigin("https://review-cards.vercel.app")).toBe(false);
+  });
+
+  it("formats permanent sequential tracking IDs and continuous batch names", () => {
+    expect(formatTrackingNumber(1)).toBe("0001");
+    expect(formatTrackingNumber(42)).toBe("0042");
+    expect(formatTrackingNumber(1250)).toBe("1250");
+    expect(formatTrackingId(5)).toBe("QR-0005");
+    expect(formatBatchCardName("Google Review Card", 5)).toBe("Google Review Card #0005");
   });
 });
 
@@ -150,5 +161,70 @@ describe("Local QR workspace CRUD and scan resolution", () => {
     for (const item of ws.codes) {
       await deleteLocalQrCode(item.id);
     }
+  });
+
+  it("keeps batch and single tracking IDs continuous and never reuses deleted IDs", async () => {
+    const startWs = await listQrWorkspace();
+    const expectedStart = startWs.nextTrackingNumber;
+
+    // Batch 1 of 5
+    const batch1 = await batchCreateLocalQrCodes(
+      "Google Review Card",
+      5,
+      UNLINKED_DESTINATION_URL,
+      false,
+    );
+    expect(batch1.trackingIds).toEqual([
+      formatTrackingId(expectedStart),
+      formatTrackingId(expectedStart + 1),
+      formatTrackingId(expectedStart + 2),
+      formatTrackingId(expectedStart + 3),
+      formatTrackingId(expectedStart + 4),
+    ]);
+
+    let ws = await listQrWorkspace();
+    const batch1Names = batch1.createdIds.map((id) => ws.codes.find((c) => c.id === id)?.name);
+    expect(batch1Names).toEqual([
+      formatBatchCardName("Google Review Card", expectedStart),
+      formatBatchCardName("Google Review Card", expectedStart + 1),
+      formatBatchCardName("Google Review Card", expectedStart + 2),
+      formatBatchCardName("Google Review Card", expectedStart + 3),
+      formatBatchCardName("Google Review Card", expectedStart + 4),
+    ]);
+
+    // Delete the highest tracking ID in Batch 1 (e.g. QR-0005)
+    const lastBatch1Id = batch1.createdIds[4]!;
+    await deleteLocalQrCode(lastBatch1Id);
+
+    // Next batch of 5 MUST start at expectedStart + 5, never reusing deleted ID
+    const batch2 = await batchCreateLocalQrCodes(
+      "Google Review Card",
+      5,
+      UNLINKED_DESTINATION_URL,
+      false,
+    );
+    expect(batch2.trackingIds).toEqual([
+      formatTrackingId(expectedStart + 5),
+      formatTrackingId(expectedStart + 6),
+      formatTrackingId(expectedStart + 7),
+      formatTrackingId(expectedStart + 8),
+      formatTrackingId(expectedStart + 9),
+    ]);
+
+    // Individual creation continues seamlessly
+    const single = await createLocalQrCode("VIP Hotel Card", "https://g.page/r/vip/review");
+    expect(single.tracking_id).toBe(formatTrackingId(expectedStart + 10));
+
+    // Delete everything and confirm nextTrackingNumber still never resets
+    ws = await listQrWorkspace();
+    for (const item of ws.codes) {
+      await deleteLocalQrCode(item.id);
+    }
+    const afterClear = await listQrWorkspace();
+    expect(afterClear.nextTrackingNumber).toBe(expectedStart + 11);
+
+    const afterDeleteAll = await createLocalQrCode("Fresh Card", "https://g.page/r/fresh/review");
+    expect(afterDeleteAll.tracking_id).toBe(formatTrackingId(expectedStart + 11));
+    await deleteLocalQrCode(afterDeleteAll.id);
   });
 });

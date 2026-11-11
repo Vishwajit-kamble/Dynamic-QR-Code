@@ -1,4 +1,4 @@
-import { Layers, Lock, Plus, Printer, QrCode } from "lucide-react";
+import { Download, Layers, LoaderCircle, Lock, Plus, Printer, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canCreateQrCode } from "@/lib/qr-workspace";
 import type { View } from "@/components/qr/types";
@@ -7,6 +7,9 @@ interface HeaderProps {
   view: View;
   codesCount: number;
   authEnabled?: boolean;
+  isExportingZip?: boolean | undefined;
+  zipProgressText?: string | undefined;
+  onDownloadZip?: (() => void) | undefined;
   onPrintAll: () => void;
   onBatchCreate: () => void;
   onCreateCode: () => void;
@@ -17,6 +20,9 @@ export function Header({
   view,
   codesCount,
   authEnabled = false,
+  isExportingZip = false,
+  zipProgressText,
+  onDownloadZip,
   onPrintAll,
   onBatchCreate,
   onCreateCode,
@@ -32,7 +38,7 @@ export function Header({
           qr<span className="text-primary">studio</span>
         </span>
       </div>
-      <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
+      <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
         <span>Workspace</span>
         <span>/</span>
         <span className="font-medium text-foreground">
@@ -52,11 +58,25 @@ export function Header({
             <Lock />
           </Button>
         )}
+        {onDownloadZip && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDownloadZip}
+            disabled={!codesCount || isExportingZip}
+            title="Download all QR codes as individual PNGs in a ZIP archive"
+            className="hidden h-9 sm:inline-flex"
+          >
+            {isExportingZip ? <LoaderCircle className="animate-spin" /> : <Download />}
+            <span>{isExportingZip ? zipProgressText || "Zipping…" : "Download ZIP"}</span>
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
           onClick={onPrintAll}
           disabled={!codesCount}
+          title="Open printable sheet (optional)"
           className="hidden h-9 sm:inline-flex"
         >
           <Printer /> Print all

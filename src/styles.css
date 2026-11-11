@@ -200,10 +200,19 @@
   }
 
   .print-label h2 {
-    margin: 0;
+    margin: 2px 0 0;
     font-size: 14px;
     font-weight: 600;
     color: #09090b;
+  }
+
+  .print-label .print-tracking-id {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #71717a;
   }
 
   .print-label .print-card-id {

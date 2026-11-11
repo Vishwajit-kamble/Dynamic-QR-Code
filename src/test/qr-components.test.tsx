@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { BatchCreateDialog } from "@/components/qr/BatchCreateDialog";
+import { CodesView } from "@/components/qr/CodesView";
 import { EmptyMini } from "@/components/qr/EmptyMini";
 import { MiniStat } from "@/components/qr/MiniStat";
 import { Pagination } from "@/components/qr/Pagination";
@@ -124,6 +126,8 @@ describe("QRRow and PrintSheet Components", () => {
   const sampleRecord: QRRecord = {
     id: "11111111-1111-4111-8111-111111111111",
     code: "abcdef123456",
+    tracking_number: 1,
+    tracking_id: "QR-0001",
     name: "Cafe Menu",
     destination_url: "https://example.com/menu",
     is_active: true,
@@ -131,8 +135,9 @@ describe("QRRow and PrintSheet Components", () => {
     updated_at: "2026-11-10T10:00:00.000Z",
   };
 
-  it("wires preview, edit, print, toggle, and delete callbacks", () => {
+  it("wires preview, download, edit, print, toggle, and delete callbacks", () => {
     const onPreview = vi.fn();
+    const onDownload = vi.fn();
     const onEdit = vi.fn();
     const onPrint = vi.fn();
     const onToggle = vi.fn();
@@ -144,6 +149,7 @@ describe("QRRow and PrintSheet Components", () => {
         url="http://localhost:8080/r/abcdef123456"
         scans={7}
         onPreview={onPreview}
+        onDownload={onDownload}
         onEdit={onEdit}
         onPrint={onPrint}
         onToggle={onToggle}
@@ -151,13 +157,16 @@ describe("QRRow and PrintSheet Components", () => {
       />,
     );
 
+    expect(screen.getByText("QR-0001")).toBeDefined();
     fireEvent.click(screen.getByLabelText("Preview QR code for Cafe Menu"));
+    fireEvent.click(screen.getByLabelText("Download QR-0001"));
     fireEvent.click(screen.getByLabelText("Edit Cafe Menu"));
     fireEvent.click(screen.getByLabelText("Print Cafe Menu"));
     fireEvent.click(screen.getByLabelText("Pause Cafe Menu"));
     fireEvent.click(screen.getByLabelText("Delete Cafe Menu"));
 
     expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onDownload).toHaveBeenCalledTimes(1);
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onPrint).toHaveBeenCalledTimes(1);
     expect(onToggle).toHaveBeenCalledTimes(1);
@@ -169,6 +178,8 @@ describe("QRRow and PrintSheet Components", () => {
       ...sampleRecord,
       id: "22222222-2222-4222-8222-222222222222",
       code: "fedcba654321",
+      tracking_number: 2,
+      tracking_id: "QR-0002",
       name: "Wifi Access",
     };
 
@@ -212,6 +223,7 @@ describe("QRRow and PrintSheet Components", () => {
     );
 
     expect(screen.getByText("Google Review Card #01")).toBeDefined();
+    expect(screen.getAllByText(/QR-0001/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/Redirects to https:\/\/github\.com/)).toBeDefined();
     expect(screen.getByText("http://10.224.253.245:8081/r/abcdef123456")).toBeDefined();
     expect(screen.getByText(/Card ID: abcdef123456/)).toBeDefined();
@@ -219,6 +231,56 @@ describe("QRRow and PrintSheet Components", () => {
     expect(screen.getByRole("link", { name: /Test scan link/i }).getAttribute("href")).toBe(
       "http://10.224.253.245:8081/r/abcdef123456",
     );
+  });
+
+  it("searches QR codes by tracking ID in CodesView and previews continuous batch numbering", () => {
+    const first: QRRecord = { ...sampleRecord, tracking_number: 1, tracking_id: "QR-0001" };
+    const fifth: QRRecord = {
+      ...sampleRecord,
+      id: "55555555-5555-4555-8555-555555555555",
+      code: "555555abcdef",
+      tracking_number: 5,
+      tracking_id: "QR-0005",
+      name: "Google Review Card #0005",
+      destination_url: UNLINKED_DESTINATION_URL,
+      is_active: false,
+    };
+
+    render(
+      <CodesView
+        records={[first, fifth]}
+        scans={[]}
+        origin="https://cards.example.com"
+        onPreview={() => {}}
+        onDownloadQr={() => {}}
+        onDownloadZip={() => {}}
+        onEdit={() => {}}
+        onToggle={() => {}}
+        onDelete={() => {}}
+        onPrint={() => {}}
+        onCreateCode={() => {}}
+      />,
+    );
+
+    const searchInput = screen.getByLabelText("Search QR codes");
+    fireEvent.change(searchInput, { target: { value: "QR-0005" } });
+    expect(screen.getByText("Google Review Card #0005")).toBeDefined();
+    expect(screen.queryByText("Cafe Menu")).toBeNull();
+
+    render(
+      <BatchCreateDialog
+        open
+        onOpenChange={() => {}}
+        codesCount={5}
+        nextTrackingNumber={6}
+        activeOrigin="https://cards.example.com"
+        onBatchCreate={async () => []}
+        onPrintBatch={() => {}}
+      />,
+    );
+    expect(
+      screen.getByText(/Google Review Card #0006 … #0015 \(QR-0006 … QR-0015\)/),
+    ).toBeDefined();
   });
 
   it("renders unlinked inventory state cleanly in QRRow and QRCodeEditor limit text", () => {

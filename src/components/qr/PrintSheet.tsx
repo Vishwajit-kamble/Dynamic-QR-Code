@@ -25,6 +25,7 @@ export function PrintSheet({ records, origin, printTargetId }: PrintSheetProps) 
           <article key={code.id} className="print-label" data-print-id={code.id}>
             <QRCodeSVG value={`${origin}/r/${code.code}`} size={152} level="Q" includeMargin />
             <div>
+              <p className="print-tracking-id">{code.tracking_id}</p>
               <h2>{code.name}</h2>
               <p className="print-card-id">ID: {code.code}</p>
               <p className={isUnlinked ? "print-card-hint" : undefined}>

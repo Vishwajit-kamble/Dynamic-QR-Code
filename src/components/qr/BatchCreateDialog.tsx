@@ -1,4 +1,4 @@
-import { AlertTriangle, Layers, LoaderCircle, Printer } from "lucide-react";
+import { AlertTriangle, Download, Layers, LoaderCircle, Printer } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,9 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   canCreateQrCode,
+  formatBatchCardName,
+  formatTrackingId,
+  formatTrackingNumber,
   isPrivateOrLocalOrigin,
   MAX_BATCH_CREATE,
   MAX_QR_CODES,
@@ -22,6 +25,7 @@ interface BatchCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   codesCount: number;
+  nextTrackingNumber?: number | undefined;
   activeOrigin: string;
   onBatchCreate: (params: {
     prefix: string;
@@ -29,6 +33,7 @@ interface BatchCreateDialogProps {
     destinationUrl: string;
     isActive: boolean;
   }) => Promise<string[]>;
+  onDownloadBatchZip?: ((ids: string[]) => void) | undefined;
   onPrintBatch: (ids: string[]) => void;
 }
 
@@ -38,14 +43,17 @@ export function BatchCreateDialog({
   open,
   onOpenChange,
   codesCount,
+  nextTrackingNumber = 1,
   activeOrigin,
   onBatchCreate,
+  onDownloadBatchZip,
   onPrintBatch,
 }: BatchCreateDialogProps) {
   const [prefix, setPrefix] = useState("Google Review Card");
   const [count, setCount] = useState(10);
   const [unlinkedMode, setUnlinkedMode] = useState(true);
   const [destinationUrl, setDestinationUrl] = useState("");
+  const [downloadZipAfter, setDownloadZipAfter] = useState(false);
   const [printAfter, setPrintAfter] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,6 +64,7 @@ export function BatchCreateDialog({
       setCount(10);
       setUnlinkedMode(true);
       setDestinationUrl("");
+      setDownloadZipAfter(false);
       setPrintAfter(false);
       setError("");
     }
@@ -63,6 +72,8 @@ export function BatchCreateDialog({
 
   const remaining = Math.max(0, MAX_QR_CODES - codesCount);
   const isLocalPrintRisk = isPrivateOrLocalOrigin(activeOrigin);
+  const startSeq = Math.max(1, nextTrackingNumber);
+  const endSeq = startSeq + Math.max(1, count) - 1;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -108,7 +119,9 @@ export function BatchCreateDialog({
         isActive: !unlinkedMode,
       });
       onOpenChange(false);
-      if (printAfter && createdIds.length > 0) {
+      if (downloadZipAfter && onDownloadBatchZip && createdIds.length > 0) {
+        window.setTimeout(() => onDownloadBatchZip(createdIds), 120);
+      } else if (printAfter && createdIds.length > 0) {
         window.setTimeout(() => onPrintBatch(createdIds), 120);
       }
     } catch (err) {
@@ -162,7 +175,9 @@ export function BatchCreateDialog({
               placeholder="e.g. Google Review Card"
             />
             <p className="text-xs text-muted-foreground">
-              Creates {prefix.trim() || "Card"} #01 … #{String(count).padStart(2, "0")}
+              {count === 1
+                ? `Creates ${formatBatchCardName(prefix, startSeq)} (${formatTrackingId(startSeq)})`
+                : `Creates ${formatBatchCardName(prefix, startSeq)} … #${formatTrackingNumber(endSeq)} (${formatTrackingId(startSeq)} … ${formatTrackingId(endSeq)})`}
             </p>
           </div>
 
@@ -234,16 +249,37 @@ export function BatchCreateDialog({
             )}
           </div>
 
-          <label className="flex min-h-10 cursor-pointer items-center gap-2 py-1 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={printAfter}
-              onChange={(event) => setPrintAfter(event.target.checked)}
-              className="size-4 shrink-0 rounded border-input accent-primary"
-            />
-            <Printer className="size-3.5 shrink-0" />
-            <span>Open printable label sheet right after generating</span>
-          </label>
+          <div className="space-y-1">
+            {onDownloadBatchZip && (
+              <label className="flex min-h-9 cursor-pointer items-center gap-2 py-0.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={downloadZipAfter}
+                  onChange={(event) => {
+                    setDownloadZipAfter(event.target.checked);
+                    if (event.target.checked) setPrintAfter(false);
+                  }}
+                  className="size-4 shrink-0 rounded border-input accent-primary"
+                />
+                <Download className="size-3.5 shrink-0" />
+                <span>Download individual QR images as ZIP right after generating</span>
+              </label>
+            )}
+
+            <label className="flex min-h-9 cursor-pointer items-center gap-2 py-0.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={printAfter}
+                onChange={(event) => {
+                  setPrintAfter(event.target.checked);
+                  if (event.target.checked) setDownloadZipAfter(false);
+                }}
+                className="size-4 shrink-0 rounded border-input accent-primary"
+              />
+              <Printer className="size-3.5 shrink-0" />
+              <span>Open printable label sheet right after generating</span>
+            </label>
+          </div>
 
           {error && (
             <p role="alert" className="text-sm text-destructive">

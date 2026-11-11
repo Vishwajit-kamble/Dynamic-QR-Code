@@ -55,6 +55,7 @@ export const getQrWorkspace = createServerFn({ method: "GET" }).handler(async ()
       scans: [] as Awaited<ReturnType<typeof store.listQrWorkspace>>["scans"],
       networkHost: null as string | null,
       storageMode: store.getStorageMode(),
+      nextTrackingNumber: 1,
     };
   }
 

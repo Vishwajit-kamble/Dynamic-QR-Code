@@ -8,7 +8,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { downloadIndividualQrPng, downloadIndividualQrSvg } from "@/lib/qr-export";
 import { isPrivateOrLocalOrigin, isUnlinkedDestination } from "@/lib/qr-workspace";
 import type { QRRecord } from "@/components/qr/types";
 
@@ -46,7 +47,6 @@ export function QRPreviewDialog({
   onTestedScan,
 }: QRPreviewDialogProps) {
   const [copied, setCopied] = useState(false);
-  const svgWrapperRef = useRef<HTMLDivElement>(null);
 
   if (!code) return null;
 
@@ -55,11 +55,6 @@ export function QRPreviewDialog({
   const hasLanOption = Boolean(!customOrigin && lanOrigin && lanOrigin !== origin);
   const isUnlinked = isUnlinkedDestination(code.destination_url);
   const isLocalPrintRisk = activeOrigin ? isPrivateOrLocalOrigin(activeOrigin) : true;
-  const safeFileSlug =
-    code.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "qr-code";
 
   const handleCopy = async () => {
     try {
@@ -73,47 +68,18 @@ export function QRPreviewDialog({
   };
 
   const handleDownloadSvg = () => {
-    const svg = svgWrapperRef.current?.querySelector("svg");
-    if (!svg) return;
-    const xml = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = `${safeFileSlug}.svg`;
-    link.href = url;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try {
+      downloadIndividualQrSvg(qrUrl, code.tracking_id);
+      toast.success(`Downloaded ${code.tracking_id}.svg`);
+    } catch {
+      toast.error("Could not export SVG.");
+    }
   };
 
   const handleDownloadPng = async () => {
-    const svg = svgWrapperRef.current?.querySelector("svg");
-    if (!svg) return;
     try {
-      const xml = new XMLSerializer().serializeToString(svg);
-      const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-      const blobUrl = URL.createObjectURL(blob);
-      const img = new Image();
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("Image load failed"));
-        img.src = blobUrl;
-      });
-      const size = 1024;
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, size, size);
-      ctx.drawImage(img, 0, 0, size, size);
-      URL.revokeObjectURL(blobUrl);
-
-      const pngUrl = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.download = `${safeFileSlug}.png`;
-      link.href = pngUrl;
-      link.click();
+      await downloadIndividualQrPng(qrUrl, code.tracking_id);
+      toast.success(`Downloaded ${code.tracking_id}.png`);
     } catch {
       toast.error("Could not export PNG.");
     }
@@ -124,6 +90,9 @@ export function QRPreviewDialog({
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader className="min-w-0 text-left">
           <DialogTitle className="flex min-w-0 flex-wrap items-center gap-2 pr-9 leading-snug">
+            <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-xs font-semibold tracking-wide text-foreground">
+              {code.tracking_id}
+            </span>
             <span className="min-w-0 break-words py-0.5 sm:truncate">{code.name}</span>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
@@ -142,28 +111,33 @@ export function QRPreviewDialog({
             title={isUnlinked ? "Unlinked inventory card" : code.destination_url}
           >
             {isUnlinked
-              ? `Card ID: ${code.code} · Assign customer Google Review link when sold`
+              ? `${code.tracking_id} · Assign customer Google Review link when sold`
               : `Redirects to ${code.destination_url}`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex w-full min-w-0 flex-col items-center gap-3 py-0.5 sm:gap-3.5 sm:py-1">
-          <div
-            ref={svgWrapperRef}
-            className="rounded-xl border border-border bg-white p-2.5 shadow-xs sm:p-3"
-          >
+          <div className="rounded-xl border border-border bg-white p-2.5 shadow-xs sm:p-3">
             <QRCodeSVG
               value={qrUrl}
               size={220}
-              level="M"
+              level="Q"
               includeMargin
               className="h-44 w-44 sm:h-[212px] sm:w-[212px]"
             />
+            <p className="-mt-1 pb-1 text-center font-mono text-[10px] font-medium tracking-wider text-zinc-400">
+              {code.tracking_id}
+            </p>
           </div>
 
-          <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
-            Card ID: {code.code}
-          </span>
+          <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5">
+            <span className="rounded-md bg-secondary px-2.5 py-1 font-mono text-[11px] font-semibold text-foreground">
+              Tracking ID: {code.tracking_id}
+            </span>
+            <span className="max-w-full truncate rounded-md bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
+              Card ID: {code.code}
+            </span>
+          </div>
 
           {isLocalPrintRisk && (
             <div className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-foreground">

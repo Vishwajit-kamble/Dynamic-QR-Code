@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import type { QRRecord } from "@/components/qr/types";
 import {
   canCreateQrCode,
+  formatBatchCardName,
+  formatTrackingId,
   isUnlinkedDestination,
   MAX_QR_CODES,
   UNLINKED_DESTINATION_URL,
@@ -23,6 +25,7 @@ interface QRCodeEditorProps {
   onOpenChange: (open: boolean) => void;
   editing: QRRecord | null;
   codesCount: number;
+  nextTrackingNumber?: number;
   onSubmit: (name: string, url: string, isActive?: boolean) => Promise<void>;
 }
 
@@ -31,6 +34,7 @@ export function QRCodeEditor({
   onOpenChange,
   editing,
   codesCount,
+  nextTrackingNumber = 1,
   onSubmit,
 }: QRCodeEditorProps) {
   const [formName, setFormName] = useState("");
@@ -40,6 +44,7 @@ export function QRCodeEditor({
   const [saving, setSaving] = useState(false);
 
   const editingWasUnlinked = Boolean(editing && isUnlinkedDestination(editing.destination_url));
+  const upcomingTrackingId = formatTrackingId(nextTrackingNumber);
 
   useEffect(() => {
     if (open) {
@@ -118,9 +123,9 @@ export function QRCodeEditor({
           <DialogDescription>
             {editing
               ? editingWasUnlinked
-                ? `Card ID ${editing.code} — paste the buyer’s Google Review link to activate this pre-printed card.`
-                : "Update the name or destination. The printed code won't change."
-              : "Give your card a name and paste the Google Review or destination URL."}
+                ? `${editing.tracking_id} (Card ID: ${editing.code}) — paste the buyer’s Google Review link to activate this pre-printed card.`
+                : `${editing.tracking_id} · Update the name or destination. The printed code won't change.`
+              : `Assigns permanent Tracking ID ${upcomingTrackingId}. Give your card a name and paste the Google Review or destination URL.`}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => void submitCode(event)} noValidate className="space-y-4">
@@ -148,7 +153,11 @@ export function QRCodeEditor({
                 type="checkbox"
                 checked={leaveUnlinked}
                 onChange={(event) => {
-                  setLeaveUnlinked(event.target.checked);
+                  const checked = event.target.checked;
+                  setLeaveUnlinked(checked);
+                  if (checked && !formName.trim()) {
+                    setFormName(formatBatchCardName("Google Review Card", nextTrackingNumber));
+                  }
                   if (formError) setFormError("");
                 }}
                 className="size-4 shrink-0 rounded border-input accent-primary"
