@@ -7,7 +7,9 @@ import {
   setCookie,
 } from "@tanstack/react-start/server";
 
+/** HttpOnly session cookie storing the signed admin session expiration token. */
 const ADMIN_COOKIE_NAME = "qrstudio_admin_session";
+/** Session lifetime (30 days in milliseconds). */
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function getPasscodeSecret(): string {
@@ -23,10 +25,15 @@ function hashValue(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
 }
 
+/** Returns `true` when `ADMIN_PASSCODE` (or `ADMIN_PASSWORD`) is configured on the server. */
 export function isAdminAuthEnabled(): boolean {
   return getPasscodeSecret().length > 0;
 }
 
+/**
+ * Verifies the HMAC-signed admin session cookie against the configured passcode.
+ * Always returns `true` when admin passcode protection is disabled.
+ */
 export function isAdminSessionAuthorized(): boolean {
   const secret = getPasscodeSecret();
   if (!secret) return true;
@@ -52,6 +59,7 @@ export function isAdminSessionAuthorized(): boolean {
   }
 }
 
+/** Throws an authorization error if admin auth is enabled and the current session is invalid. */
 export function assertAdminAuthorized(): void {
   if (!isAdminSessionAuthorized()) {
     throw new Error("Workspace is locked. Enter your admin passcode to continue.");
@@ -68,6 +76,10 @@ function isHttpsRequest(): boolean {
   }
 }
 
+/**
+ * Validates the submitted passcode in constant time and issues an `HttpOnly`
+ * HMAC-signed session cookie when valid.
+ */
 export function verifyAndSetAdminSession(passcodeInput: string): boolean {
   const secret = getPasscodeSecret();
   if (!secret) return true;
@@ -90,6 +102,7 @@ export function verifyAndSetAdminSession(passcodeInput: string): boolean {
   return true;
 }
 
+/** Deletes the admin session cookie to lock the workspace on the current browser. */
 export function clearAdminSession(): void {
   try {
     deleteCookie(ADMIN_COOKIE_NAME, { path: "/" });
