@@ -1,9 +1,11 @@
+/** File entry payload passed to the PKZIP archive builder. */
 export interface ZipEntryInput {
   name: string;
   data: Uint8Array;
   modifiedAt?: Date | undefined;
 }
 
+/** Precomputed IEEE 802.3 CRC-32 lookup table (`0xEDB88320` polynomial). */
 const CRC32_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i += 1) {
@@ -16,6 +18,7 @@ const CRC32_TABLE = (() => {
   return table;
 })();
 
+/** Computes the unsigned 32-bit CRC-32 checksum for a byte buffer. */
 export function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
   for (let i = 0; i < bytes.length; i += 1) {
@@ -25,6 +28,7 @@ export function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+/** Converts a JavaScript `Date` to packed MS-DOS time and date fields for ZIP headers. */
 function toDosDateTime(date: Date): { dosTime: number; dosDate: number } {
   const year = Math.min(2107, Math.max(1980, date.getFullYear()));
   const month = date.getMonth() + 1;
@@ -131,6 +135,7 @@ export function createZipBytes(entries: ZipEntryInput[]): Uint8Array {
   return archive;
 }
 
+/** Convenience wrapper around `createZipBytes` returning a downloadable `application/zip` `Blob`. */
 export function createZipBlob(entries: ZipEntryInput[]): Blob {
   const bytes = createZipBytes(entries);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
