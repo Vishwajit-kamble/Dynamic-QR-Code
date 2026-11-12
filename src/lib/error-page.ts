@@ -1,3 +1,4 @@
+/** Renders a self-contained HTML fallback page when an unrecovered server error occurs. */
 export function renderErrorPage(): string {
   return `<!doctype html>
 <html lang="en">

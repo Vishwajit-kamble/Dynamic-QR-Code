@@ -1,3 +1,4 @@
+/** Formats an ISO timestamp into a compact relative label (`Just now`, `5m ago`, `2h ago`, `3d ago`). */
 export function formatRelative(value: string) {
   const difference = Date.now() - new Date(value).getTime();
   if (difference < 60_000) return "Just now";
