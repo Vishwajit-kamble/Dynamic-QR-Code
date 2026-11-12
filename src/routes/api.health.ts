@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+/**
+ * Health-check endpoint (`GET /api/health`) verifying storage backend readiness
+ * (`postgres`, `local-file`, or `unconfigured-serverless`) with no-store caching.
+ */
 export const Route = createFileRoute("/api/health")({
   server: {
     handlers: {

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
+/** Strict no-cache headers so destination updates take effect on the very next scan. */
 const NO_CACHE_HEADERS = {
   "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
   pragma: "no-cache",
@@ -10,6 +11,7 @@ const NO_CACHE_HEADERS = {
   "vercel-cdn-cache-control": "no-store",
 };
 
+/** Escapes HTML special characters before interpolating strings into status pages. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -48,6 +50,11 @@ function renderStatusHtml(title: string, message: string, cardCode?: string): st
 </html>`;
 }
 
+/**
+ * Public dynamic QR redirect route (`GET /r/$code`).
+ * Logs device type and referrer host, then returns an uncached 302 redirect
+ * or a mobile-friendly status page if the card is paused, unlinked, or missing.
+ */
 export const Route = createFileRoute("/r/$code")({
   server: {
     handlers: {
