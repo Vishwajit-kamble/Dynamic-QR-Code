@@ -151,6 +151,24 @@ See [`.env.example`](./.env.example) for the full template:
 
 ---
 
+## Endpoints
+
+| Route         | Method | Access | Behavior                                                                                                 |
+| :------------ | :----- | :----- | :------------------------------------------------------------------------------------------------------- |
+| `/`           | `GET`  | Admin  | Dashboard workspace (locked via HMAC `HttpOnly` cookie when `ADMIN_PASSCODE` is set).                    |
+| `/r/<code>`   | `GET`  | Public | Logs device type & referrer host, then returns a `no-store` `302` redirect or status page (`404`/`503`). |
+| `/api/health` | `GET`  | Public | Reports active `storageMode` (`postgres`, `local-file`, or `unconfigured-serverless`) and timestamp.     |
+
+---
+
+## Export & Print Specifications
+
+- **Permanent Tracking IDs**: Cards receive sequential identifiers (`QR-0001`, `QR-0002`, …) that stay consistent across reprints and batch exports.
+- **Error Correction**: Exports use Level `Q` (~25% damage tolerance) with a full 4-module quiet zone for reliable scanning on physical standees and laminated cards.
+- **Single & Bulk Downloads**: Download individual `.svg` vectors, `1024×1076` crisp `.png` cards, or an uncompressed `STORE`-mode `.zip` archive of all selected cards.
+
+---
+
 ## Project Structure
 
 ```text
