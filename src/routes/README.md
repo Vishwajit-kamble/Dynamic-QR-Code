@@ -19,3 +19,12 @@ is `src/routes/__root.tsx`.
 | `__root.tsx`             | app shell — wraps every page; preserve `<Outlet />`     |
 
 `routeTree.gen.ts` is auto-generated. Don't edit it by hand.
+
+## Active Application Routes
+
+| File            | URL           | Purpose                                                                      |
+| --------------- | ------------- | ---------------------------------------------------------------------------- |
+| `__root.tsx`    | _root shell_  | Global document layout, metadata, favicons, and React Query / Toaster setup  |
+| `index.tsx`     | `/`           | QR Studio management workspace (overview analytics and QR card inventory)    |
+| `r.$code.ts`    | `/r/:code`    | Public no-cache `302` redirect handler & scan telemetry recorder             |
+| `api.health.ts` | `/api/health` | Storage readiness health check returning `200` (`ok: true`) or `503`         |
