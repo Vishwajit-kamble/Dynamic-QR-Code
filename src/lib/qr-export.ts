@@ -3,11 +3,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createZipBytes, type ZipEntryInput } from "@/lib/zip";
 
+/** Output width in pixels for exported QR card images. */
 export const QR_EXPORT_WIDTH = 1024;
+/** Output height in pixels, leaving space below the QR quiet zone for the tracking ID. */
 export const QR_EXPORT_HEIGHT = 1076;
+/** Muted grey color for the printed tracking label beneath each QR code. */
 export const QR_EXPORT_TRACKING_COLOR = "#9CA3AF";
+/** Monospace font size in pixels for the exported tracking ID label. */
 export const QR_EXPORT_TRACKING_FONT_SIZE = 22;
 
+/** Vector geometry metrics derived from `qrcode.react` for crisp integer-aligned rendering. */
 export interface QrSvgGeometry {
   numCells: number;
   fgPath: string;
@@ -201,6 +206,10 @@ async function renderSvgFallbackToPngBlob(
   }
 }
 
+/**
+ * Renders a single QR card onto a canvas and encodes it as a PNG `Blob`.
+ * Optionally accepts a reusable `sharedCanvas` to avoid repeated allocations during batch exports.
+ */
 export async function renderQrCardPngBlob(
   url: string,
   trackingId: string,
@@ -211,6 +220,7 @@ export async function renderQrCardPngBlob(
   return drawQrCardToCanvas(canvas, geometry, trackingId);
 }
 
+/** Triggers a browser file download for the given `Blob` and schedules object URL cleanup. */
 export function triggerBlobDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -220,21 +230,25 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Normalizes a tracking ID or label into a safe archive/download filename segment. */
 export function sanitizeArchiveFilenameSegment(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-|-$/g, "") || "QR";
 }
 
+/** Renders and downloads an individual `1024x1076` print-ready PNG for a single QR card. */
 export async function downloadIndividualQrPng(url: string, trackingId: string): Promise<void> {
   const blob = await renderQrCardPngBlob(url, trackingId);
   triggerBlobDownload(blob, `${sanitizeArchiveFilenameSegment(trackingId)}.png`);
 }
 
+/** Generates and downloads a standalone crisp vector SVG for a single QR card. */
 export function downloadIndividualQrSvg(url: string, trackingId: string): void {
   const svg = buildQrCardSvg(url, trackingId);
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   triggerBlobDownload(blob, `${sanitizeArchiveFilenameSegment(trackingId)}.svg`);
 }
 
+/** Input descriptor for an individual QR card included in a batch ZIP export. */
 export interface BatchZipItem {
   url: string;
   trackingId: string;
@@ -259,6 +273,10 @@ async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
   });
 }
 
+/**
+ * Renders all requested QR cards into PNGs sorted by tracking number and packages
+ * them into an uncompressed ZIP byte array, reporting per-item progress.
+ */
 export async function buildQrBatchZipBytes(
   items: BatchZipItem[],
   onProgress?: (completed: number, total: number) => void,
@@ -312,6 +330,7 @@ export async function buildQrBatchZipBytes(
   return createZipBytes(entries);
 }
 
+/** Wraps `buildQrBatchZipBytes` output into an `application/zip` `Blob`. */
 export async function buildQrBatchZipBlob(
   items: BatchZipItem[],
   onProgress?: (completed: number, total: number) => void,
@@ -321,6 +340,7 @@ export async function buildQrBatchZipBlob(
   return new Blob([buffer as ArrayBuffer], { type: "application/zip" });
 }
 
+/** Builds a batch ZIP archive of QR PNGs and initiates a browser download. */
 export async function downloadQrBatchZip(
   items: BatchZipItem[],
   options?: {
